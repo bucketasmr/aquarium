@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симулятор Аквариума (Реалистичное движение)</title>
+    <title>Симулятор Аквариума (Исправленное поедание еды)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -425,7 +425,7 @@
                 <button class="success" onclick="sellBulkMarketFish(9999)">Продать всех на рынок</button>
             </div>
             <div class="inventory-list" id="inventoryList"></div>
-            <div class="info-text">✨ Движение рыб оптимизировано: смена направления каждые 4–8 сек, развороты плавные и естественные!</div>
+            <div class="info-text">✨ Исправлено поедание корма с грунта на GitHub Pages!</div>
         </div>
     </div>
 
@@ -433,7 +433,7 @@
         const canvas = document.getElementById('aquariumCanvas');
         const ctx = canvas.getContext('2d');
 
-        const SAVE_KEY = 'pixel_aquarium_save_master_v6';
+        const SAVE_KEY = 'pixel_aquarium_save_master_v7';
 
         let gameData = {
             coins: 150,
@@ -684,7 +684,7 @@
                 facingLeft: false,
                 zProgress: 0, 
                 state: 'swim',
-                stateTimer: Math.floor(Math.random() * 240) + 240, // 4-8 секунд (при 60 fps)
+                stateTimer: Math.floor(Math.random() * 240) + 240,
                 inspectPauseTimer: 0,
                 scaredTimer: 0,
                 birthTime: Date.now(),
@@ -1340,7 +1340,8 @@
                 let targetHappiness = (fish.health + fish.fullness + gameData.waterCleanliness) / 3;
                 fish.happiness += (targetHappiness - fish.happiness) * 0.01;
 
-                const foodNoticeRadius = (timeData.mode === 'morning') ? 35 * fish.sizeFactor : 20 * fish.sizeFactor;
+                // Увеличен радиус обнаружения еды (и добавлен минимальный порог сбора), чтобы рыбы никогда не зависали над ней
+                const foodNoticeRadius = (timeData.mode === 'morning') ? 50 * fish.sizeFactor : 35 * fish.sizeFactor;
 
                 if (fish.fullness < 95 && gameData.foods.length > 0) {
                     let closestFoodIdx = -1;
@@ -1355,13 +1356,15 @@
 
                     if (closestFoodIdx !== -1) {
                         const food = gameData.foods[closestFoodIdx];
-                        if (minDist < foodNoticeRadius) {
+                        // ИСПРАВЛЕНИЕ: если рыба подошла достаточно близко (или проскочила точку в пределах 25 пикселей), еда гарантированно съедается
+                        if (minDist < foodNoticeRadius || Math.hypot(food.x - fish.x, food.y - fish.y) < 25) {
                             gameData.foods.splice(closestFoodIdx, 1);
                             fish.fullness = Math.min(100, fish.fullness + 35);
                             fish.happiness = Math.min(100, fish.happiness + 15);
+                            fish.inspectPauseTimer = 0;
                         } else if (fish.scaredTimer === 0 && (!isDarkTime || fish.nocturnal)) {
                             fish.targetX = food.x;
-                            fish.targetY = food.falling ? food.y : 380;
+                            fish.targetY = food.falling ? food.y : Math.min(380, food.y);
                             fish.state = 'swim';
                         }
                     }
@@ -1424,7 +1427,6 @@
                     fish.stateTimer--;
                     if (fish.stateTimer <= 0) {
                         const rand = Math.random();
-                        // Обновленный таймер: спокойное движение длится от 4 до 8 секунд (240-480 кадров)
                         fish.stateTimer = Math.floor(Math.random() * 240) + 240;
 
                         if (isDarkTime && !fish.nocturnal) {
@@ -1564,14 +1566,12 @@
 
                 if (Math.abs(fish.vx) > 0.015) {
                     const isMovingLeft = fish.vx < -0.005;
-                    // Строгий запретный таймер: zProgress отклоняется ровно на 0.3-0.5 секунды (15-30 кадров) исключительно при смене направления
                     if (isMovingLeft !== fish.facingLeft) {
                         fish.zProgress = (Math.random() < 0.5 ? 1 : -1) * 0.65;
                     }
                     fish.facingLeft = isMovingLeft;
                 }
 
-                // Быстрое и плавное возвращение zProgress к 0, чтобы рыбка всегда плыла боком
                 fish.zProgress += (0 - fish.zProgress) * 0.12;
 
                 let targetAngle = Math.max(-0.45, Math.min(0.45, fish.vy * 0.35));
