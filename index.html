@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симулятор Аквариума (Суточный цикл)</title>
+    <title>Симулятор Аквариума (Магазин со значками)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -21,6 +21,7 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            touch-action: manipulation;
         }
         h1 {
             margin: 10px 0;
@@ -120,7 +121,7 @@
             border: 4px solid #0f172a;
             border-radius: 4px;
             cursor: pointer;
-            touch-action: none;
+            touch-action: manipulation;
         }
 
         canvas:fullscreen {
@@ -151,6 +152,7 @@
             border-radius: 4px;
             box-shadow: 0 4px 0 #1e40af;
             transition: all 0.1s ease;
+            touch-action: manipulation;
         }
         button:hover {
             background: #3b82f6;
@@ -160,12 +162,13 @@
             box-shadow: 0 1px 0 #1e40af;
         }
         button:disabled {
-            background: #4b5563;
-            border-color: #374151;
-            box-shadow: 0 4px 0 #1f2937;
-            color: #9ca3af;
+            background: #374151 !important;
+            border-color: #4b5563 !important;
+            box-shadow: 0 4px 0 #1f2937 !important;
+            color: #9ca3af !important;
             cursor: not-allowed;
             transform: none;
+            opacity: 0.65;
         }
         button.success {
             background: #16a34a;
@@ -336,6 +339,7 @@
             padding: 4px 8px;
             font-size: 0.8rem;
             box-shadow: 0 2px 0 #1e40af;
+            touch-action: manipulation;
         }
         .bulk-actions {
             display: flex;
@@ -421,7 +425,7 @@
                 <button class="success" onclick="sellBulkMarketFish(9999)">Продать всех на рынок</button>
             </div>
             <div class="inventory-list" id="inventoryList"></div>
-            <div class="info-text">🌅 Поведение рыб теперь полностью отражает суточный цикл: нерест утром, зональный покой днем, активные ночные сомики вечером и бледнеющий сон ночью!</div>
+            <div class="info-text">✨ В магазин добавлены иконки для каждой позиции!</div>
         </div>
     </div>
 
@@ -429,7 +433,7 @@
         const canvas = document.getElementById('aquariumCanvas');
         const ctx = canvas.getContext('2d');
 
-        const SAVE_KEY = 'pixel_aquarium_save_master';
+        const SAVE_KEY = 'pixel_aquarium_save_master_v3';
 
         let gameData = {
             coins: 150,
@@ -452,9 +456,10 @@
             treasures: [],
             chestTimer: 0,
             quests: {
-                feedCount: 0,
                 poopCollected: 0,
-                bubblesPopped: 0
+                bubblesPopped: 0,
+                treasuresCollected: 0,
+                coinsEarnedGoal: 0
             }
         };
 
@@ -463,14 +468,14 @@
         let wasDarkLastFrame = false;
 
         const SHOP_ITEMS = [
-            { id: 'guppy', name: 'Гуппи (Быстрые стайные)', type: 'fish', price: 25, color: '#eab308', adultTimeDays: 1, nocturnal: false },
-            { id: 'goldfish', name: 'Малек Золотой рыбки (Крупная)', type: 'fish', price: 50, color: '#f97316', adultTimeDays: 7, nocturnal: false },
-            { id: 'neon', name: 'Малек Неона (Яркий косяк)', type: 'fish', price: 30, color: '#06b6d4', adultTimeDays: 7, nocturnal: false },
-            { id: 'corydoras', name: 'Сомик Коридорас (Ночной санитар)', type: 'fish', price: 45, color: '#a3e635', adultTimeDays: 5, nocturnal: true },
-            { id: 'beta', name: 'Малек Петушка (Элегантный)', type: 'fish', price: 80, color: '#ec4899', adultTimeDays: 7, nocturnal: false },
-            { id: 'expand', name: 'Расширение аквариума (+2 места)', type: 'upgrade', price: 80 },
-            { id: 'castle', name: 'Замок', type: 'decor', price: 150 },
-            { id: 'plant', name: 'Водоросли', type: 'decor', price: 40 }
+            { id: 'guppy', name: 'Гуппи (Быстрые стайные)', type: 'fish', price: 25, color: '#eab308', adultTimeDays: 1, nocturnal: false, icon: '🐠' },
+            { id: 'goldfish', name: 'Малек Золотой рыбки (Крупная)', type: 'fish', price: 50, color: '#f97316', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
+            { id: 'neon', name: 'Малек Неона (Яркий косяк)', type: 'fish', price: 30, color: '#06b6d4', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
+            { id: 'corydoras', name: 'Сомик Коридорас (Ночной санитар)', type: 'fish', price: 45, color: '#a3e635', adultTimeDays: 5, nocturnal: true, icon: '🐠' },
+            { id: 'beta', name: 'Малек Петушка (Элегантный)', type: 'fish', price: 80, color: '#ec4899', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
+            { id: 'expand', name: 'Расширение аквариума (+2 места)', type: 'upgrade', price: 80, icon: '📐' },
+            { id: 'castle', name: 'Замок', type: 'decor', price: 150, icon: '🏰' },
+            { id: 'plant', name: 'Водоросли', type: 'decor', price: 40, icon: '🌿' }
         ];
 
         function initGame() {
@@ -514,7 +519,7 @@
 
             if (!saved) {
                 for (let i = 9; i >= 1; i--) {
-                    const oldSave = localStorage.getItem(`pixel_aquarium_save_v${i}`);
+                    const oldSave = localStorage.getItem(`pixel_aquarium_save_v${i}`) || localStorage.getItem('pixel_aquarium_save_master');
                     if (oldSave) {
                         saved = oldSave;
                         break;
@@ -528,7 +533,13 @@
                     gameData = { ...gameData, ...parsed };
                     if (!gameData.foods) gameData.foods = [];
                     if (!gameData.matingParticles) gameData.matingParticles = [];
+                    if (!gameData.fishes) gameData.fishes = [];
+                    if (!gameData.inventory) gameData.inventory = [];
+                    if (!gameData.quests) {
+                        gameData.quests = { poopCollected: 0, bubblesPopped: 0, treasuresCollected: 0, coinsEarnedGoal: 0 };
+                    }
                     if (gameData.showFishBars === undefined) gameData.showFishBars = true;
+                    
                     gameData.fishes.forEach(f => {
                         if (f.tailAnimPhase === undefined) f.tailAnimPhase = Math.random() * Math.PI * 2;
                         if (f.health === undefined) f.health = Math.floor(Math.random() * 21) + 80;
@@ -749,7 +760,10 @@
                 const dist = Math.hypot(t.x - clickX, t.y - clickY);
                 if (dist < 22) {
                     gameData.coins += 15;
+                    gameData.quests.treasuresCollected++;
+                    gameData.quests.coinsEarnedGoal += 15;
                     collected = true;
+                    renderQuests();
                     return false;
                 }
                 return true;
@@ -760,6 +774,7 @@
                 if (dist < 22) {
                     gameData.coins += 3;
                     gameData.quests.poopCollected++;
+                    gameData.quests.coinsEarnedGoal += 3;
                     collected = true;
                     renderQuests();
                     return false;
@@ -772,6 +787,7 @@
                 if (dist < 22) {
                     gameData.coins += 1;
                     gameData.quests.bubblesPopped++;
+                    gameData.quests.coinsEarnedGoal += 1;
                     collected = true;
                     renderQuests();
                     return false;
@@ -782,6 +798,7 @@
             if (collected) {
                 saveGame();
                 updateUI();
+                renderShop();
                 return;
             }
 
@@ -797,10 +814,8 @@
                 falling: true,
                 spawnTime: Date.now()
             });
-            gameData.quests.feedCount++;
             saveGame();
             updateUI();
-            renderQuests();
         }
 
         function triggerScare(x, y, radius) {
@@ -849,6 +864,7 @@
             gameData.waterCleanliness = 100;
             saveGame();
             updateUI();
+            renderShop();
         }
 
         function fullCleanWater() {
@@ -862,6 +878,7 @@
             gameData.foods = [];
             saveGame();
             updateUI();
+            renderShop();
         }
 
         function toggleFilter() {
@@ -899,6 +916,7 @@
 
             saveGame();
             renderInventory();
+            renderShop();
             updateUI();
         }
 
@@ -920,9 +938,11 @@
                 const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
 
                 gameData.coins += reward;
+                gameData.quests.coinsEarnedGoal += reward;
                 gameData.fishes.splice(index, 1);
                 saveGame();
                 renderInventory();
+                renderShop();
                 updateUI();
             }
         }
@@ -938,10 +958,12 @@
                 if (fish.type === 'corydoras') reward = 55;
 
                 gameData.coins += reward;
+                gameData.quests.coinsEarnedGoal += reward;
                 gameData.inventory.splice(index, 1);
             }
             saveGame();
             renderInventory();
+            renderShop();
             updateUI();
         }
 
@@ -967,11 +989,13 @@
                 const healthFactor = (fish.health || 100) / 100;
                 const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
                 gameData.coins += reward;
+                gameData.quests.coinsEarnedGoal += reward;
                 soldCount++;
             }
 
             saveGame();
             renderInventory();
+            renderShop();
             updateUI();
         }
 
@@ -991,36 +1015,42 @@
                 if (fish.type === 'corydoras') reward = 55;
 
                 gameData.coins += reward;
+                gameData.quests.coinsEarnedGoal += reward;
                 soldCount++;
             }
 
             saveGame();
             renderInventory();
+            renderShop();
             updateUI();
         }
 
         function claimQuest(questType, reward) {
             gameData.coins += reward;
-            if (questType === 'feed') gameData.quests.feedCount -= 2;
-            if (questType === 'poop') gameData.quests.poopCollected -= 5;
-            if (questType === 'bubbles') gameData.quests.bubblesPopped -= 10;
+            if (questType === 'poop') gameData.quests.poopCollected -= 10;
+            if (questType === 'bubbles') gameData.quests.bubblesPopped -= 15;
+            if (questType === 'treasures') gameData.quests.treasuresCollected -= 3;
+            if (questType === 'coins') gameData.quests.coinsEarnedGoal -= 100;
             saveGame();
             updateUI();
             renderQuests();
+            renderShop();
         }
 
         function renderQuests() {
             const qList = document.getElementById('questList');
             const qListMob = document.getElementById('questListMobile');
             
-            const feedDone = gameData.quests.feedCount >= 2;
-            const poopDone = gameData.quests.poopCollected >= 5;
-            const bubblesDone = gameData.quests.bubblesPopped >= 10;
+            const poopDone = gameData.quests.poopCollected >= 10;
+            const bubblesDone = gameData.quests.bubblesPopped >= 15;
+            const treasuresDone = gameData.quests.treasuresCollected >= 3;
+            const coinsDone = gameData.quests.coinsEarnedGoal >= 100;
 
             const questsUI = [
-                { id: 'feed', text: `Покормить рыб 2 раза (${Math.min(2, gameData.quests.feedCount)}/2)`, done: feedDone, reward: 30 },
-                { id: 'poop', text: `Собрать 5 какашек (${Math.min(5, gameData.quests.poopCollected)}/5)`, done: poopDone, reward: 25 },
-                { id: 'bubbles', text: `Поймать 10 пузырей (${Math.min(10, gameData.quests.bubblesPopped)}/10)`, done: bubblesDone, reward: 20 }
+                { id: 'treasures', text: `Собрать 3 сокровища (${Math.min(3, gameData.quests.treasuresCollected)}/3)`, done: treasuresDone, reward: 35 },
+                { id: 'poop', text: `Убрать 10 какашек (${Math.min(10, gameData.quests.poopCollected)}/10)`, done: poopDone, reward: 30 },
+                { id: 'bubbles', text: `Лопнуть 15 пузырей (${Math.min(15, gameData.quests.bubblesPopped)}/15)`, done: bubblesDone, reward: 25 },
+                { id: 'coins', text: `Заработать 100 монет (${Math.min(100, gameData.quests.coinsEarnedGoal)}/100)`, done: coinsDone, reward: 40 }
             ];
 
             const renderHtml = questsUI.map(q => `
@@ -1042,10 +1072,11 @@
             
             let html = '';
             SHOP_ITEMS.forEach(item => {
+                const canAfford = gameData.coins >= item.price;
                 html += `
                     <div class="shop-item">
-                        <span>${item.name} (${item.price} 🪙)</span>
-                        <button onclick="buyItem('${item.id}')">Купить</button>
+                        <span>${item.icon} ${item.name} (${item.price} 🪙)</span>
+                        <button ${!canAfford ? 'disabled' : ''} onclick="buyItem('${item.id}')">Купить</button>
                     </div>
                 `;
             });
@@ -1292,7 +1323,6 @@
                 let targetHappiness = (fish.health + fish.fullness + gameData.waterCleanliness) / 3;
                 fish.happiness += (targetHappiness - fish.happiness) * 0.01;
 
-                // Утреннее повышенное восприятие еды
                 const foodNoticeRadius = (timeData.mode === 'morning') ? 35 * fish.sizeFactor : 20 * fish.sizeFactor;
 
                 if (fish.fullness < 95 && gameData.foods.length > 0) {
@@ -1320,7 +1350,6 @@
                     }
                 }
 
-                // Заморозка таймера какашек во время сна
                 if (isDarkTime && !fish.nocturnal) {
                     if (!fish.sleepPoopPausedAt) {
                         fish.sleepPoopPausedAt = now;
@@ -1392,13 +1421,11 @@
                         const rand = Math.random();
 
                         if (isDarkTime && !fish.nocturnal) {
-                            // НОЧНОЙ СОН: Зависают у дна или в укрытии
                             fish.state = 'sleep';
                             fish.targetX = fish.x + (Math.random() - 0.5) * 20;
                             fish.targetY = 350 + Math.random() * 35;
                             fish.stateTimer = Math.floor(Math.random() * 800) + 500;
                         } else if (timeData.mode === 'morning' && rand < 0.35) {
-                            // УТРЕННИЕ ИГРЫ И НЕРЕСТ
                             const partner = gameData.fishes.find(other => other !== fish && other.type === fish.type);
                             if (partner) {
                                 fish.state = 'mate';
@@ -1420,7 +1447,6 @@
                                 fish.stateTimer = 250;
                             }
                         } else if (timeData.mode === 'day' && rand < 0.3) {
-                            // ДНЕВНОЙ ОТДЫХ В ТЕНИ РАСТЕНИЙ
                             const plants = gameData.decorations.filter(d => d.type === 'plant' || d.type === 'castle');
                             if (plants.length > 0) {
                                 fish.state = 'hide';
@@ -1435,7 +1461,6 @@
                                 fish.stateTimer = 300;
                             }
                         } else if (timeData.mode === 'evening' && !fish.nocturnal && rand < 0.5) {
-                            // ВЕЧЕРНЯЯ ПОДГОТОВКА КО СНУ
                             fish.state = 'rest';
                             fish.targetX = fish.x + (Math.random() - 0.5) * 30;
                             fish.targetY = 320 + Math.random() * 50;
@@ -1477,7 +1502,6 @@
                     }
                 }
 
-                // Настройка скоростей по суточному циклу
                 let baseSpeed = 0.35;
                 if (fish.type === 'guppy') baseSpeed = 0.45;
                 if (fish.type === 'neon') baseSpeed = 0.55;
@@ -1487,9 +1511,9 @@
 
                 if (timeData.mode === 'morning') baseSpeed *= 1.3;
                 if (timeData.mode === 'evening' && !fish.nocturnal) baseSpeed *= 0.6;
-                if (timeData.mode === 'evening' && fish.nocturnal) baseSpeed *= 1.4; // сомики оживают
+                if (timeData.mode === 'evening' && fish.nocturnal) baseSpeed *= 1.4;
                 if (isDarkTime && fish.nocturnal) baseSpeed *= 1.5;
-                if (isDarkTime && !fish.nocturnal) baseSpeed *= 0.08; // спит
+                if (isDarkTime && !fish.nocturnal) baseSpeed *= 0.08;
 
                 if (fish.state === 'rest' || fish.state === 'sleep' || fish.state === 'hide') baseSpeed *= 0.1;
                 if (fish.state === 'dash' || fish.scaredTimer > 0) baseSpeed *= 2.2;
@@ -1648,13 +1672,11 @@
             ctx.moveTo(500, 0); ctx.lineTo(620, 0); ctx.lineTo(550, canvas.height); ctx.lineTo(430, canvas.height);
             ctx.fill();
 
-            // Дно
             ctx.fillStyle = '#d97706';
             ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
             ctx.fillStyle = '#b45309';
             ctx.fillRect(0, canvas.height - 40, canvas.width, 6);
 
-            // Лампа
             const centerX = canvas.width / 2;
             ctx.fillStyle = '#334155';
             ctx.fillRect(centerX - 40, 0, 80, 12);
@@ -1670,7 +1692,6 @@
             ctx.closePath();
             ctx.fill();
 
-            // Кнопка переключения показателей
             ctx.fillStyle = gameData.showFishBars ? '#16a34a' : '#374151';
             ctx.strokeStyle = '#d97706';
             ctx.lineWidth = 2;
@@ -1692,7 +1713,6 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
 
-            // Фильтр
             ctx.fillStyle = '#475569';
             ctx.fillRect(780, canvas.height - 75, 35, 35);
             ctx.fillStyle = gameData.filterOn ? '#22c55e' : '#334155';
@@ -1748,7 +1768,6 @@
             gameData.fishes.forEach(fish => {
                 ctx.save();
                 
-                // Бледнеют ночью во время сна
                 if (isDarkTime && !fish.nocturnal) {
                     ctx.globalAlpha = 0.55;
                 }
