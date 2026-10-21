@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симулятор Аквариума (Магазин со значками)</title>
+    <title>Симулятор Аквариума (Без NaN)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -425,7 +425,7 @@
                 <button class="success" onclick="sellBulkMarketFish(9999)">Продать всех на рынок</button>
             </div>
             <div class="inventory-list" id="inventoryList"></div>
-            <div class="info-text">✨ В магазин добавлены иконки для каждой позиции!</div>
+            <div class="info-text">✨ Ошибки NaN в заданиях полностью исправлены! Магазин и иконки работают корректно.</div>
         </div>
     </div>
 
@@ -433,7 +433,7 @@
         const canvas = document.getElementById('aquariumCanvas');
         const ctx = canvas.getContext('2d');
 
-        const SAVE_KEY = 'pixel_aquarium_save_master_v3';
+        const SAVE_KEY = 'pixel_aquarium_save_master_v4';
 
         let gameData = {
             coins: 150,
@@ -535,9 +535,24 @@
                     if (!gameData.matingParticles) gameData.matingParticles = [];
                     if (!gameData.fishes) gameData.fishes = [];
                     if (!gameData.inventory) gameData.inventory = [];
-                    if (!gameData.quests) {
-                        gameData.quests = { poopCollected: 0, bubblesPopped: 0, treasuresCollected: 0, coinsEarnedGoal: 0 };
+                    
+                    // Безопасная инициализация счетчиков заданий во избежание NaN
+                    if (!gameData.quests || typeof gameData.quests !== 'object') {
+                        gameData.quests = {};
                     }
+                    if (typeof gameData.quests.poopCollected !== 'number' || isNaN(gameData.quests.poopCollected)) {
+                        gameData.quests.poopCollected = 0;
+                    }
+                    if (typeof gameData.quests.bubblesPopped !== 'number' || isNaN(gameData.quests.bubblesPopped)) {
+                        gameData.quests.bubblesPopped = 0;
+                    }
+                    if (typeof gameData.quests.treasuresCollected !== 'number' || isNaN(gameData.quests.treasuresCollected)) {
+                        gameData.quests.treasuresCollected = 0;
+                    }
+                    if (typeof gameData.quests.coinsEarnedGoal !== 'number' || isNaN(gameData.quests.coinsEarnedGoal)) {
+                        gameData.quests.coinsEarnedGoal = 0;
+                    }
+
                     if (gameData.showFishBars === undefined) gameData.showFishBars = true;
                     
                     gameData.fishes.forEach(f => {
@@ -760,8 +775,8 @@
                 const dist = Math.hypot(t.x - clickX, t.y - clickY);
                 if (dist < 22) {
                     gameData.coins += 15;
-                    gameData.quests.treasuresCollected++;
-                    gameData.quests.coinsEarnedGoal += 15;
+                    gameData.quests.treasuresCollected = (gameData.quests.treasuresCollected || 0) + 1;
+                    gameData.quests.coinsEarnedGoal = (gameData.quests.coinsEarnedGoal || 0) + 15;
                     collected = true;
                     renderQuests();
                     return false;
@@ -773,8 +788,8 @@
                 const dist = Math.hypot(p.x - clickX, p.y - clickY);
                 if (dist < 22) {
                     gameData.coins += 3;
-                    gameData.quests.poopCollected++;
-                    gameData.quests.coinsEarnedGoal += 3;
+                    gameData.quests.poopCollected = (gameData.quests.poopCollected || 0) + 1;
+                    gameData.quests.coinsEarnedGoal = (gameData.quests.coinsEarnedGoal || 0) + 3;
                     collected = true;
                     renderQuests();
                     return false;
@@ -786,8 +801,8 @@
                 const dist = Math.hypot(b.x - clickX, b.y - clickY);
                 if (dist < 22) {
                     gameData.coins += 1;
-                    gameData.quests.bubblesPopped++;
-                    gameData.quests.coinsEarnedGoal += 1;
+                    gameData.quests.bubblesPopped = (gameData.quests.bubblesPopped || 0) + 1;
+                    gameData.quests.coinsEarnedGoal = (gameData.quests.coinsEarnedGoal || 0) + 1;
                     collected = true;
                     renderQuests();
                     return false;
@@ -938,7 +953,7 @@
                 const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
 
                 gameData.coins += reward;
-                gameData.quests.coinsEarnedGoal += reward;
+                gameData.quests.coinsEarnedGoal = (gameData.quests.coinsEarnedGoal || 0) + reward;
                 gameData.fishes.splice(index, 1);
                 saveGame();
                 renderInventory();
@@ -958,7 +973,7 @@
                 if (fish.type === 'corydoras') reward = 55;
 
                 gameData.coins += reward;
-                gameData.quests.coinsEarnedGoal += reward;
+                gameData.quests.coinsEarnedGoal = (gameData.quests.coinsEarnedGoal || 0) + reward;
                 gameData.inventory.splice(index, 1);
             }
             saveGame();
@@ -989,7 +1004,7 @@
                 const healthFactor = (fish.health || 100) / 100;
                 const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
                 gameData.coins += reward;
-                gameData.quests.coinsEarnedGoal += reward;
+                gameData.quests.coinsEarnedGoal = (gameData.quests.coinsEarnedGoal || 0) + reward;
                 soldCount++;
             }
 
@@ -1015,7 +1030,7 @@
                 if (fish.type === 'corydoras') reward = 55;
 
                 gameData.coins += reward;
-                gameData.quests.coinsEarnedGoal += reward;
+                gameData.quests.coinsEarnedGoal = (gameData.quests.coinsEarnedGoal || 0) + reward;
                 soldCount++;
             }
 
@@ -1027,10 +1042,10 @@
 
         function claimQuest(questType, reward) {
             gameData.coins += reward;
-            if (questType === 'poop') gameData.quests.poopCollected -= 10;
-            if (questType === 'bubbles') gameData.quests.bubblesPopped -= 15;
-            if (questType === 'treasures') gameData.quests.treasuresCollected -= 3;
-            if (questType === 'coins') gameData.quests.coinsEarnedGoal -= 100;
+            if (questType === 'poop') gameData.quests.poopCollected = Math.max(0, (gameData.quests.poopCollected || 0) - 10);
+            if (questType === 'bubbles') gameData.quests.bubblesPopped = Math.max(0, (gameData.quests.bubblesPopped || 0) - 15);
+            if (questType === 'treasures') gameData.quests.treasuresCollected = Math.max(0, (gameData.quests.treasuresCollected || 0) - 3);
+            if (questType === 'coins') gameData.quests.coinsEarnedGoal = Math.max(0, (gameData.quests.coinsEarnedGoal || 0) - 100);
             saveGame();
             updateUI();
             renderQuests();
@@ -1041,16 +1056,21 @@
             const qList = document.getElementById('questList');
             const qListMob = document.getElementById('questListMobile');
             
-            const poopDone = gameData.quests.poopCollected >= 10;
-            const bubblesDone = gameData.quests.bubblesPopped >= 15;
-            const treasuresDone = gameData.quests.treasuresCollected >= 3;
-            const coinsDone = gameData.quests.coinsEarnedGoal >= 100;
+            const pColl = gameData.quests.poopCollected || 0;
+            const bPoop = gameData.quests.bubblesPopped || 0;
+            const tColl = gameData.quests.treasuresCollected || 0;
+            const cGoal = gameData.quests.coinsEarnedGoal || 0;
+
+            const poopDone = pColl >= 10;
+            const bubblesDone = bPoop >= 15;
+            const treasuresDone = tColl >= 3;
+            const coinsDone = cGoal >= 100;
 
             const questsUI = [
-                { id: 'treasures', text: `Собрать 3 сокровища (${Math.min(3, gameData.quests.treasuresCollected)}/3)`, done: treasuresDone, reward: 35 },
-                { id: 'poop', text: `Убрать 10 какашек (${Math.min(10, gameData.quests.poopCollected)}/10)`, done: poopDone, reward: 30 },
-                { id: 'bubbles', text: `Лопнуть 15 пузырей (${Math.min(15, gameData.quests.bubblesPopped)}/15)`, done: bubblesDone, reward: 25 },
-                { id: 'coins', text: `Заработать 100 монет (${Math.min(100, gameData.quests.coinsEarnedGoal)}/100)`, done: coinsDone, reward: 40 }
+                { id: 'treasures', text: `Собрать 3 сокровища (${Math.min(3, tColl)}/3)`, done: treasuresDone, reward: 35 },
+                { id: 'poop', text: `Убрать 10 какашек (${Math.min(10, pColl)}/10)`, done: poopDone, reward: 30 },
+                { id: 'bubbles', text: `Лопнуть 15 пузырей (${Math.min(15, bPoop)}/15)`, done: bubblesDone, reward: 25 },
+                { id: 'coins', text: `Заработать 100 монет (${Math.min(100, cGoal)}/100)`, done: coinsDone, reward: 40 }
             ];
 
             const renderHtml = questsUI.map(q => `
