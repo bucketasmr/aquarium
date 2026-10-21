@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симулятор Аквариума (Пиксели / Реализм)</title>
+    <title>Симулятор Аквариума (Суточный цикл)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -114,7 +114,8 @@
         canvas {
             display: block;
             width: 100%;
-            height: 450px;
+            height: auto;
+            aspect-ratio: 16 / 9;
             background: #0284c7;
             border: 4px solid #0f172a;
             border-radius: 4px;
@@ -125,6 +126,7 @@
         canvas:fullscreen {
             width: 100vw !important;
             height: 100vh !important;
+            aspect-ratio: auto;
             object-fit: contain;
             border: none;
             border-radius: 0;
@@ -419,7 +421,7 @@
                 <button class="success" onclick="sellBulkMarketFish(9999)">Продать всех на рынок</button>
             </div>
             <div class="inventory-list" id="inventoryList"></div>
-            <div class="info-text">💡 Показатели над рыбами сделаны прозрачными на 40%!</div>
+            <div class="info-text">🌅 Поведение рыб теперь полностью отражает суточный цикл: нерест утром, зональный покой днем, активные ночные сомики вечером и бледнеющий сон ночью!</div>
         </div>
     </div>
 
@@ -446,6 +448,7 @@
             poops: [],
             fishBubbles: [],
             sandDusts: [],
+            matingParticles: [],
             treasures: [],
             chestTimer: 0,
             quests: {
@@ -457,12 +460,14 @@
 
         let mouseX = -9999;
         let mouseY = -9999;
+        let wasDarkLastFrame = false;
 
         const SHOP_ITEMS = [
-            { id: 'guppy', name: 'Гуппи (Быстрые стайные)', type: 'fish', price: 25, color: '#eab308', adultTimeDays: 1 },
-            { id: 'goldfish', name: 'Малек Золотой рыбки (Крупная)', type: 'fish', price: 50, color: '#f97316', adultTimeDays: 7 },
-            { id: 'neon', name: 'Малек Неона (Яркий косяк)', type: 'fish', price: 30, color: '#06b6d4', adultTimeDays: 7 },
-            { id: 'beta', name: 'Малек Петушка (Элегантный)', type: 'fish', price: 80, color: '#ec4899', adultTimeDays: 7 },
+            { id: 'guppy', name: 'Гуппи (Быстрые стайные)', type: 'fish', price: 25, color: '#eab308', adultTimeDays: 1, nocturnal: false },
+            { id: 'goldfish', name: 'Малек Золотой рыбки (Крупная)', type: 'fish', price: 50, color: '#f97316', adultTimeDays: 7, nocturnal: false },
+            { id: 'neon', name: 'Малек Неона (Яркий косяк)', type: 'fish', price: 30, color: '#06b6d4', adultTimeDays: 7, nocturnal: false },
+            { id: 'corydoras', name: 'Сомик Коридорас (Ночной санитар)', type: 'fish', price: 45, color: '#a3e635', adultTimeDays: 5, nocturnal: true },
+            { id: 'beta', name: 'Малек Петушка (Элегантный)', type: 'fish', price: 80, color: '#ec4899', adultTimeDays: 7, nocturnal: false },
             { id: 'expand', name: 'Расширение аквариума (+2 места)', type: 'upgrade', price: 80 },
             { id: 'castle', name: 'Замок', type: 'decor', price: 150 },
             { id: 'plant', name: 'Водоросли', type: 'decor', price: 40 }
@@ -472,8 +477,8 @@
             loadGameData();
 
             if (!gameData.fishes || gameData.fishes.length === 0) {
-                gameData.fishes.push(createFish('guppy', '#eab308', 1));
-                gameData.fishes.push(createFish('goldfish', '#f97316', 7));
+                gameData.fishes.push(createFish('guppy', '#eab308', 1, false));
+                gameData.fishes.push(createFish('corydoras', '#a3e635', 5, true));
             }
 
             gameData.decorations = (gameData.decorations || []).filter(d => d.type !== 'chest');
@@ -522,12 +527,14 @@
                     const parsed = JSON.parse(saved);
                     gameData = { ...gameData, ...parsed };
                     if (!gameData.foods) gameData.foods = [];
+                    if (!gameData.matingParticles) gameData.matingParticles = [];
                     if (gameData.showFishBars === undefined) gameData.showFishBars = true;
                     gameData.fishes.forEach(f => {
                         if (f.tailAnimPhase === undefined) f.tailAnimPhase = Math.random() * Math.PI * 2;
                         if (f.health === undefined) f.health = Math.floor(Math.random() * 21) + 80;
                         if (f.fullness === undefined) f.fullness = 0;
                         if (f.happiness === undefined) f.happiness = 100;
+                        if (f.nocturnal === undefined) f.nocturnal = f.type === 'corydoras';
                     });
                     saveGame();
                 } catch (e) {
@@ -625,7 +632,7 @@
             alert('Игра успешно загружена!');
         }
 
-        function createFish(type, color, adultDays = 7) {
+        function createFish(type, color, adultDays = 7, nocturnal = false) {
             const minMs = 5 * 60 * 1000;
             const maxMs = 15 * 60 * 1000;
             const randomPoopInterval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
@@ -633,12 +640,14 @@
             let preferredY = 200;
             if (type === 'neon' || type === 'guppy') preferredY = 80 + Math.random() * 150;
             if (type === 'goldfish') preferredY = 180 + Math.random() * 160;
+            if (type === 'corydoras') preferredY = 360 + Math.random() * 30;
             if (type === 'beta') preferredY = 120 + Math.random() * 200;
 
             return {
                 id: Math.random().toString(36).substr(2, 9),
                 type: type,
                 color: color,
+                nocturnal: nocturnal,
                 x: Math.random() * (canvas.width - 120) + 60,
                 y: preferredY,
                 vx: (Math.random() - 0.5) * 0.4,
@@ -666,26 +675,46 @@
             };
         }
 
-        function handlePointerMove(event) {
+        function getCanvasCoordinates(event) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            const clientX = event.clientX !== undefined ? event.clientX : event.touches[0].clientX;
-            const clientY = event.clientY !== undefined ? event.clientY : event.touches[0].clientY;
             
-            mouseX = (clientX - rect.left) * scaleX;
-            mouseY = (clientY - rect.top) * scaleY;
+            let clientX = event.clientX;
+            let clientY = event.clientY;
+
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            }
+
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function handlePointerMove(event) {
+            const coords = getCanvasCoordinates(event);
+            mouseX = coords.x;
+            mouseY = coords.y;
+        }
+
+        function triggerNightLightPanic() {
+            gameData.fishes.forEach(fish => {
+                if (!fish.nocturnal) {
+                    fish.scaredTimer = 180;
+                    fish.state = 'dash';
+                    fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                    fish.targetY = Math.random() * 250 + 60;
+                }
+            });
         }
 
         function handleCanvasClick(event) {
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const clientX = event.clientX !== undefined ? event.clientX : event.touches[0].clientX;
-            const clientY = event.clientY !== undefined ? event.clientY : event.touches[0].clientY;
-            
-            const clickX = (clientX - rect.left) * scaleX;
-            const clickY = (clientY - rect.top) * scaleY;
+            const coords = getCanvasCoordinates(event);
+            const clickX = coords.x;
+            const clickY = coords.y;
 
             if (clickX >= 10 && clickX <= 180 && clickY >= 5 && clickY <= 30) {
                 gameData.showFishBars = !gameData.showFishBars;
@@ -695,7 +724,15 @@
             }
 
             if (clickX >= canvas.width / 2 - 60 && clickX <= canvas.width / 2 + 60 && clickY >= 0 && clickY <= 35) {
+                const timeData = getTimeOfDay();
+                const wasDark = timeData.dark && !gameData.lightOn;
+                
                 gameData.lightOn = !gameData.lightOn;
+
+                if (wasDark && gameData.lightOn) {
+                    triggerNightLightPanic();
+                }
+
                 saveGame();
                 updateUI();
                 return;
@@ -846,7 +883,7 @@
                     return;
                 }
                 gameData.coins -= item.price;
-                gameData.fishes.push(createFish(item.id, item.color, item.adultTimeDays || 7));
+                gameData.fishes.push(createFish(item.id, item.color, item.adultTimeDays || 7, item.nocturnal || false));
             } else if (item.type === 'upgrade') {
                 gameData.coins -= item.price;
                 gameData.maxFishCapacity += 2;
@@ -877,6 +914,7 @@
                 if (fish.type === 'guppy') maxReward = 35;
                 if (fish.type === 'beta') maxReward = 100;
                 if (fish.type === 'neon') maxReward = 40;
+                if (fish.type === 'corydoras') maxReward = 55;
 
                 const healthFactor = (fish.health || 100) / 100;
                 const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
@@ -897,6 +935,7 @@
                 if (fish.type === 'guppy') reward = 35;
                 if (fish.type === 'beta') reward = 100;
                 if (fish.type === 'neon') reward = 40;
+                if (fish.type === 'corydoras') reward = 55;
 
                 gameData.coins += reward;
                 gameData.inventory.splice(index, 1);
@@ -923,6 +962,7 @@
                 if (fish.type === 'guppy') maxReward = 35;
                 if (fish.type === 'beta') maxReward = 100;
                 if (fish.type === 'neon') maxReward = 40;
+                if (fish.type === 'corydoras') maxReward = 55;
 
                 const healthFactor = (fish.health || 100) / 100;
                 const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
@@ -948,6 +988,7 @@
                 if (fish.type === 'guppy') reward = 35;
                 if (fish.type === 'beta') reward = 100;
                 if (fish.type === 'neon') reward = 40;
+                if (fish.type === 'corydoras') reward = 55;
 
                 gameData.coins += reward;
                 soldCount++;
@@ -1034,6 +1075,8 @@
                 if (fish.type === 'guppy') maxReward = 35;
                 if (fish.type === 'beta') maxReward = 100;
                 if (fish.type === 'neon') maxReward = 40;
+                if (fish.type === 'corydoras') maxReward = 55;
+
                 const healthFactor = (fish.health || 100) / 100;
                 const currentReward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
 
@@ -1042,6 +1085,7 @@
                 if (fish.type === 'goldfish') fishTypeName = 'Золотая рыбка';
                 if (fish.type === 'neon') fishTypeName = 'Неон';
                 if (fish.type === 'beta') fishTypeName = 'Петушок';
+                if (fish.type === 'corydoras') fishTypeName = 'Коридорас';
 
                 const hVal = Math.round(fish.health);
                 const fVal = Math.round(fish.fullness);
@@ -1050,7 +1094,7 @@
                 html += `
                     <div class="inv-item">
                         <div class="inv-item-details">
-                            <span>🐠 <b>${fishTypeName}</b> — Рост: ${percentInt}% (${ageDays} дн.)</span>
+                            <span>🐠 <b>${fishTypeName}</b> — Рост: ${percentInt}% (${ageDays} дн.) ${fish.nocturnal ? '🌙' : '☀️'}</span>
                             <div class="stats-row">
                                 <span class="stat-bar-group">
                                     ❤️ ${hVal}%
@@ -1082,12 +1126,14 @@
                 if (fish.type === 'guppy') price = 35;
                 if (fish.type === 'beta') price = 100;
                 if (fish.type === 'neon') price = 40;
+                if (fish.type === 'corydoras') price = 55;
 
                 let fishTypeName = fish.type;
                 if (fish.type === 'guppy') fishTypeName = 'Гуппи';
                 if (fish.type === 'goldfish') fishTypeName = 'Золотая рыбка';
                 if (fish.type === 'neon') fishTypeName = 'Неон';
                 if (fish.type === 'beta') fishTypeName = 'Петушок';
+                if (fish.type === 'corydoras') fishTypeName = 'Коридорас';
 
                 html += `
                     <div class="inv-item">
@@ -1142,10 +1188,10 @@
         function getTimeOfDay() {
             const hour = new Date().getHours();
             
-            if (hour >= 6 && hour < 12) return { name: 'Утро 🌅', top: '#7dd3fc', bot: '#0284c7', dark: false };
-            if (hour >= 12 && hour < 18) return { name: 'День ☀️', top: '#38bdf8', bot: '#0369a1', dark: false };
-            if (hour >= 18 && hour < 21) return { name: 'Вечер 🌇', top: '#c084fc', bot: '#1e3a8a', dark: true };
-            return { name: 'Ночь 🌙', top: '#1e1b4b', bot: '#0f172a', dark: true };
+            if (hour >= 6 && hour < 12) return { mode: 'morning', name: 'Утро 🌅', top: '#7dd3fc', bot: '#0284c7', dark: false };
+            if (hour >= 12 && hour < 18) return { mode: 'day', name: 'День ☀️', top: '#38bdf8', bot: '#0369a1', dark: false };
+            if (hour >= 18 && hour < 21) return { mode: 'evening', name: 'Вечер 🌇', top: '#c084fc', bot: '#1e3a8a', dark: true };
+            return { mode: 'night', name: 'Ночь 🌙', top: '#1e1b4b', bot: '#0f172a', dark: true };
         }
 
         function updateFish() {
@@ -1154,6 +1200,11 @@
 
             const timeData = getTimeOfDay();
             const isDarkTime = timeData.dark && !gameData.lightOn;
+
+            if (wasDarkLastFrame && !isDarkTime) {
+                triggerNightLightPanic();
+            }
+            wasDarkLastFrame = isDarkTime;
 
             const chest = gameData.decorations.find(d => d.type === 'chest');
             if (chest && !isDarkTime) {
@@ -1241,6 +1292,9 @@
                 let targetHappiness = (fish.health + fish.fullness + gameData.waterCleanliness) / 3;
                 fish.happiness += (targetHappiness - fish.happiness) * 0.01;
 
+                // Утреннее повышенное восприятие еды
+                const foodNoticeRadius = (timeData.mode === 'morning') ? 35 * fish.sizeFactor : 20 * fish.sizeFactor;
+
                 if (fish.fullness < 95 && gameData.foods.length > 0) {
                     let closestFoodIdx = -1;
                     let minDist = 9999;
@@ -1254,11 +1308,11 @@
 
                     if (closestFoodIdx !== -1) {
                         const food = gameData.foods[closestFoodIdx];
-                        if (minDist < 20 * fish.sizeFactor) {
+                        if (minDist < foodNoticeRadius) {
                             gameData.foods.splice(closestFoodIdx, 1);
                             fish.fullness = Math.min(100, fish.fullness + 35);
                             fish.happiness = Math.min(100, fish.happiness + 15);
-                        } else if (fish.scaredTimer === 0) {
+                        } else if (fish.scaredTimer === 0 && (!isDarkTime || fish.nocturnal)) {
                             fish.targetX = food.x;
                             fish.targetY = food.falling ? food.y : 380;
                             fish.state = 'swim';
@@ -1266,17 +1320,30 @@
                     }
                 }
 
-                if (!isDarkTime && now - fish.lastPoopTime >= fish.nextPoopInterval) {
-                    gameData.poops.push({
-                        x: fish.x,
-                        y: fish.y,
-                        targetY: 428 + Math.random() * 4,
-                        falling: true
-                    });
-                    fish.lastPoopTime = now;
-                    const minMs = 5 * 60 * 1000;
-                    const maxMs = 15 * 60 * 1000;
-                    fish.nextPoopInterval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+                // Заморозка таймера какашек во время сна
+                if (isDarkTime && !fish.nocturnal) {
+                    if (!fish.sleepPoopPausedAt) {
+                        fish.sleepPoopPausedAt = now;
+                    }
+                } else {
+                    if (fish.sleepPoopPausedAt) {
+                        const sleepDuration = now - fish.sleepPoopPausedAt;
+                        fish.lastPoopTime += sleepDuration;
+                        fish.sleepPoopPausedAt = null;
+                    }
+
+                    if (now - fish.lastPoopTime >= fish.nextPoopInterval) {
+                        gameData.poops.push({
+                            x: fish.x,
+                            y: fish.y,
+                            targetY: 428 + Math.random() * 4,
+                            falling: true
+                        });
+                        fish.lastPoopTime = now;
+                        const minMs = 5 * 60 * 1000;
+                        const maxMs = 15 * 60 * 1000;
+                        fish.nextPoopInterval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+                    }
                 }
 
                 if (!isDarkTime && Math.random() < 0.0006 && Math.abs(fish.zProgress) <= 0.3) {
@@ -1323,88 +1390,115 @@
                     fish.stateTimer--;
                     if (fish.stateTimer <= 0) {
                         const rand = Math.random();
-                        if (isDarkTime) {
-                            fish.state = rand < 0.5 ? 'swim' : 'rest';
-                            fish.targetX = Math.random() * (canvas.width - 120) + 60;
-                            fish.targetY = Math.random() * 250 + 80;
-                            fish.stateTimer = Math.floor(Math.random() * 600) + 400;
-                        } else if (rand < 0.4) {
+
+                        if (isDarkTime && !fish.nocturnal) {
+                            // НОЧНОЙ СОН: Зависают у дна или в укрытии
+                            fish.state = 'sleep';
+                            fish.targetX = fish.x + (Math.random() - 0.5) * 20;
+                            fish.targetY = 350 + Math.random() * 35;
+                            fish.stateTimer = Math.floor(Math.random() * 800) + 500;
+                        } else if (timeData.mode === 'morning' && rand < 0.35) {
+                            // УТРЕННИЕ ИГРЫ И НЕРЕСТ
+                            const partner = gameData.fishes.find(other => other !== fish && other.type === fish.type);
+                            if (partner) {
+                                fish.state = 'mate';
+                                fish.targetX = partner.x + (Math.random() - 0.5) * 40;
+                                fish.targetY = partner.y + (Math.random() - 0.5) * 20;
+                                fish.stateTimer = Math.floor(Math.random() * 300) + 150;
+                                
+                                if (Math.random() < 0.5) {
+                                    gameData.matingParticles.push({
+                                        x: (fish.x + partner.x) / 2,
+                                        y: (fish.y + partner.y) / 2,
+                                        alpha: 1.0
+                                    });
+                                }
+                            } else {
+                                fish.state = 'swim';
+                                fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                                fish.targetY = Math.random() * 280 + 50;
+                                fish.stateTimer = 250;
+                            }
+                        } else if (timeData.mode === 'day' && rand < 0.3) {
+                            // ДНЕВНОЙ ОТДЫХ В ТЕНИ РАСТЕНИЙ
+                            const plants = gameData.decorations.filter(d => d.type === 'plant' || d.type === 'castle');
+                            if (plants.length > 0) {
+                                fish.state = 'hide';
+                                const targetPlant = plants[Math.floor(Math.random() * plants.length)];
+                                fish.targetX = targetPlant.x + (Math.random() - 0.5) * 30;
+                                fish.targetY = 360;
+                                fish.stateTimer = Math.floor(Math.random() * 400) + 200;
+                            } else {
+                                fish.state = 'swim';
+                                fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                                fish.targetY = Math.random() * 250 + 60;
+                                fish.stateTimer = 300;
+                            }
+                        } else if (timeData.mode === 'evening' && !fish.nocturnal && rand < 0.5) {
+                            // ВЕЧЕРНЯЯ ПОДГОТОВКА КО СНУ
+                            fish.state = 'rest';
+                            fish.targetX = fish.x + (Math.random() - 0.5) * 30;
+                            fish.targetY = 320 + Math.random() * 50;
+                            fish.stateTimer = Math.floor(Math.random() * 400) + 200;
+                        } else if (rand < 0.45) {
                             fish.state = 'swim';
                             fish.targetX = Math.random() * (canvas.width - 120) + 60;
                             
                             let yRangeMin = 50, yRangeMax = 320;
                             if (fish.type === 'neon' || fish.type === 'guppy') { yRangeMin = 50; yRangeMax = 200; }
                             if (fish.type === 'goldfish') { yRangeMin = 180; yRangeMax = 370; }
+                            if (fish.type === 'corydoras') { yRangeMin = 340; yRangeMax = 390; }
 
                             fish.targetY = Math.random() * (yRangeMax - yRangeMin) + yRangeMin;
                             fish.stateTimer = Math.floor(Math.random() * 400) + 200;
-                        } else if (rand < 0.6) {
+                        } else if (rand < 0.65) {
                             fish.state = 'rest';
                             fish.targetX = fish.x + (Math.random() - 0.5) * 40;
                             fish.targetY = fish.y + (Math.random() - 0.5) * 20;
                             fish.stateTimer = Math.floor(Math.random() * 250) + 120;
-                        } else if (rand < 0.75) {
+                        } else if (rand < 0.8) {
                             fish.state = 'dig';
                             fish.targetX = Math.random() * (canvas.width - 120) + 60;
                             fish.targetY = 380;
                             fish.stateTimer = Math.floor(Math.random() * 200) + 150;
-                        } else if (gameData.filterOn && rand < 0.88) {
-                            fish.state = 'filter';
-                            fish.targetX = 795;
-                            fish.targetY = 360;
-                            fish.stateTimer = Math.floor(Math.random() * 200) + 100;
                         } else {
-                            const plants = gameData.decorations.filter(d => d.type === 'plant');
-                            if (plants.length > 0) {
-                                fish.state = 'inspect';
-                                const targetPlant = plants[Math.floor(Math.random() * plants.length)];
-                                fish.targetX = targetPlant.x;
-                                fish.targetY = 370;
-                                fish.stateTimer = Math.floor(Math.random() * 300) + 150;
-                            } else {
-                                fish.state = 'swim';
-                                fish.targetX = Math.random() * (canvas.width - 120) + 60;
-                                fish.targetY = Math.random() * 300 + 50;
-                                fish.stateTimer = 300;
-                            }
+                            fish.state = 'swim';
+                            fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                            fish.targetY = Math.random() * 300 + 50;
+                            fish.stateTimer = 300;
                         }
                     }
 
-                    if (fish.state === 'inspect' || fish.state === 'dig' || fish.state === 'filter') {
+                    if (fish.state === 'inspect' || fish.state === 'dig' || fish.state === 'filter' || fish.state === 'hide') {
                         const distToTarget = Math.hypot(fish.targetX - fish.x, fish.targetY - fish.y);
                         if (distToTarget < 25 && fish.inspectPauseTimer === 0) {
                             fish.inspectPauseTimer = Math.floor(Math.random() * 150) + 80;
-
-                            if (fish.state === 'inspect') {
-                                gameData.decorations.forEach(dec => {
-                                    if (dec.type === 'plant' && Math.abs(dec.x - fish.x) < 30) {
-                                        if (dec.scaleY === undefined) dec.scaleY = 1.0;
-                                        dec.scaleY = Math.max(0.4, dec.scaleY - 0.15);
-                                    }
-                                });
-                            }
                         }
                     }
                 }
 
+                // Настройка скоростей по суточному циклу
                 let baseSpeed = 0.35;
                 if (fish.type === 'guppy') baseSpeed = 0.45;
                 if (fish.type === 'neon') baseSpeed = 0.55;
                 if (fish.type === 'goldfish') baseSpeed = 0.28;
                 if (fish.type === 'beta') baseSpeed = 0.35;
+                if (fish.type === 'corydoras') baseSpeed = 0.40;
 
-                if (isDarkTime) {
-                    baseSpeed *= 0.35;
-                }
+                if (timeData.mode === 'morning') baseSpeed *= 1.3;
+                if (timeData.mode === 'evening' && !fish.nocturnal) baseSpeed *= 0.6;
+                if (timeData.mode === 'evening' && fish.nocturnal) baseSpeed *= 1.4; // сомики оживают
+                if (isDarkTime && fish.nocturnal) baseSpeed *= 1.5;
+                if (isDarkTime && !fish.nocturnal) baseSpeed *= 0.08; // спит
 
-                if (fish.state === 'rest' && fish.scaredTimer === 0) baseSpeed *= 0.1;
-                if (fish.state === 'dash' || fish.scaredTimer > 0) baseSpeed *= 2.0;
+                if (fish.state === 'rest' || fish.state === 'sleep' || fish.state === 'hide') baseSpeed *= 0.1;
+                if (fish.state === 'dash' || fish.scaredTimer > 0) baseSpeed *= 2.2;
                 if (fish.inspectPauseTimer > 0) baseSpeed = 0.0;
 
                 let targetX = fish.targetX;
                 let targetY = fish.targetY;
 
-                if (fish.scaredTimer === 0 && fish.inspectPauseTimer === 0 && fish.state !== 'inspect' && fish.state !== 'dig' && fish.state !== 'filter') {
+                if (fish.scaredTimer === 0 && fish.inspectPauseTimer === 0 && fish.state !== 'inspect' && fish.state !== 'dig') {
                     let separateX = 0, separateY = 0;
 
                     gameData.fishes.forEach(other => {
@@ -1465,6 +1559,11 @@
 
                 return true;
             });
+
+            gameData.matingParticles.forEach(mp => {
+                mp.alpha -= 0.015;
+            });
+            gameData.matingParticles = gameData.matingParticles.filter(mp => mp.alpha > 0);
 
             gameData.sandDusts.forEach(sd => {
                 sd.y += sd.vy;
@@ -1630,6 +1729,13 @@
                 ctx.fillRect(sd.x, sd.y, 5, 4);
             });
 
+            gameData.matingParticles.forEach(mp => {
+                ctx.fillStyle = `rgba(253, 224, 71, ${mp.alpha})`;
+                ctx.beginPath();
+                ctx.arc(mp.x, mp.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             gameData.fishBubbles.forEach(b => {
                 ctx.beginPath();
@@ -1637,12 +1743,23 @@
                 ctx.fill();
             });
 
+            const isDarkTime = timeData.dark && !gameData.lightOn;
+
             gameData.fishes.forEach(fish => {
+                ctx.save();
+                
+                // Бледнеют ночью во время сна
+                if (isDarkTime && !fish.nocturnal) {
+                    ctx.globalAlpha = 0.55;
+                }
+
                 if (gameData.realisticStyle) {
                     drawRealisticFish(fish);
                 } else {
                     drawPixelFish(fish);
                 }
+
+                ctx.restore();
 
                 if (gameData.showFishBars) {
                     drawFloatingFishBars(fish);
@@ -1656,7 +1773,6 @@
 
         function drawFloatingFishBars(fish) {
             ctx.save();
-            // Прозрачность полосок показателей 40% (непрозрачность 0.6)
             ctx.globalAlpha = 0.6;
 
             const barWidth = 36;
@@ -1835,6 +1951,17 @@
                     ctx.lineTo(-28, -12 - tailWag);
                     ctx.lineTo(-24, 0);
                     ctx.lineTo(-28, 12 + tailWag);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (fish.type === 'corydoras') {
+                    ctx.fillStyle = fish.color;
+                    ctx.fillRect(-14, -8, 28, 16);
+                    ctx.fillStyle = '#65a30d';
+                    ctx.fillRect(-10, -4, 20, 8);
+                    ctx.beginPath();
+                    ctx.moveTo(-14, 0);
+                    ctx.lineTo(-22, -7 - tailWag);
+                    ctx.lineTo(-22, 7 + tailWag);
                     ctx.closePath();
                     ctx.fill();
                 } else if (fish.type === 'neon') {
