@@ -1362,10 +1362,7 @@
                 });
             }
 
-            // Настройка сытости: 100% сытости расходуется ровно за 5 часов реального времени
             const FULLNESS_DECAY_PER_FRAME = 100 / (5 * 60 * 60 * 60); 
-
-            // Настройка здоровья: падение до 0 при голоде занимает 3 реальных календарных дня (72 часа)
             const HEALTH_DECAY_PER_FRAME = 100 / (3 * 24 * 60 * 60 * 60);
 
             if (gameData.activeNet) {
@@ -1597,9 +1594,13 @@
 
                 if (timeData.mode === 'morning') baseSpeed *= 1.3;
                 if (timeData.mode === 'evening' && !fish.nocturnal) baseSpeed *= 0.6;
-                if (timeData.mode === 'evening' && fish.nocturnal) baseSpeed *= 1.4;
-                if (isDarkTime && fish.nocturnal) baseSpeed *= 1.5;
-                if (isDarkTime && !fish.nocturnal) baseSpeed *= 0.08;
+                
+                // Если сейчас ночь (или вечер без света) и это сомик (nocturnal), замедляем его в 2.5 раза (было умножение на 1.5, стало на 0.4)
+                if (isDarkTime && fish.nocturnal) {
+                    baseSpeed *= 0.4;
+                } else if (isDarkTime && !fish.nocturnal) {
+                    baseSpeed *= 0.08;
+                }
 
                 if (fish.state === 'rest' || fish.state === 'sleep' || fish.state === 'hide') baseSpeed *= 0.1;
                 if (fish.state === 'dash' || fish.scaredTimer > 0) baseSpeed *= 2.2;
@@ -1703,8 +1704,6 @@
                 renderInventory();
             }
 
-            // Настройка чистоты воды: падение со 100% до 0% ровно за 7 реальных календарных дней (7 * 24 * 3600 секунд)
-            // Если фильтр выключен, падение занимает 7 дней. Если фильтр ВКЛЮЧЕН, вода загрязняется в 3 раза медленнее.
             const totalFramesForWeek = 7 * 24 * 60 * 60 * 60;
             const pollutionPerFrame = 100 / totalFramesForWeek;
             const pollutionRate = gameData.filterOn ? pollutionPerFrame / 3 : pollutionPerFrame;
