@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симулятор Аквариума (С сачком и разложением)</title>
+    <title>Симулятор Аквариума (HD рыбки без изменения поведения)</title>
     <style>
         * {
             box-sizing: border-box;
             user-select: none;
-            image-rendering: pixelated;
         }
         body {
             margin: 0;
@@ -398,7 +397,6 @@
             <button id="fullCleanBtn" class="warning" style="background:#b45309; border-color:#92400e;" onclick="fullCleanWater()">Полная очистка (35 🪙)</button>
             <button id="netBtn" class="cyan" onclick="toggleNetMode()">Сачок: ВЫКЛ</button>
             <button id="filterBtn" onclick="toggleFilter()">Фильтр: ВЫКЛ</button>
-            <button id="styleBtn" class="cyan" onclick="toggleFishStyle()">Стиль рыб: Пиксельный</button>
             <button class="cyan" onclick="toggleCanvasFullScreen()">На весь экран ⛶</button>
             <button class="purple" onclick="setPcMode(true)" id="pcModeBtn">Режим ПК</button>
             <button class="dark-mode" onclick="setPcMode(false)" id="stdModeBtn">Стандартный режим</button>
@@ -434,7 +432,7 @@
         const canvas = document.getElementById('aquariumCanvas');
         const ctx = canvas.getContext('2d');
 
-        const SAVE_KEY = 'pixel_aquarium_save_master_v11';
+        const SAVE_KEY = 'pixel_aquarium_save_master_v13';
 
         let gameData = {
             coins: 150,
@@ -443,7 +441,6 @@
             filterOn: false,
             lightOn: false,
             pcMode: false,
-            realisticStyle: false,
             showFishBars: true,
             netMode: false,
             lastFeedTime: 0,
@@ -456,7 +453,7 @@
             sandDusts: [],
             matingParticles: [],
             treasures: [],
-            activeNet: null, // Анимация сачка: { x, targetY, currentY, fishId, state: 'down'|'up' }
+            activeNet: null,
             chestTimer: 0,
             quests: {
                 poopCollected: 0,
@@ -471,11 +468,11 @@
         let wasDarkLastFrame = false;
 
         const SHOP_ITEMS = [
-            { id: 'guppy', name: 'Гуппи (Быстрые стайные)', type: 'fish', price: 25, color: '#eab308', adultTimeDays: 1, nocturnal: false, icon: '🐠' },
-            { id: 'goldfish', name: 'Малек Золотой рыбки (Крупная)', type: 'fish', price: 50, color: '#f97316', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
-            { id: 'neon', name: 'Малек Неона (Яркий косяк)', type: 'fish', price: 30, color: '#06b6d4', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
-            { id: 'corydoras', name: 'Сомик Коридорас (Ночной санитар)', type: 'fish', price: 45, color: '#a3e635', adultTimeDays: 5, nocturnal: true, icon: '🐠' },
-            { id: 'beta', name: 'Малек Петушка (Элегантный)', type: 'fish', price: 80, color: '#ec4899', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
+            { id: 'guppy', name: 'Гуппи (Быстрые стайные)', type: 'fish', price: 25, color: '#eab308', accentColor: '#f97316', adultTimeDays: 1, nocturnal: false, icon: '🐠' },
+            { id: 'goldfish', name: 'Малек Золотой рыбки (Крупная)', type: 'fish', price: 50, color: '#f97316', accentColor: '#fbbf24', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
+            { id: 'neon', name: 'Малек Неона (Яркий косяк)', type: 'fish', price: 30, color: '#06b6d4', accentColor: '#3b82f6', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
+            { id: 'corydoras', name: 'Сомик Коридорас (Ночной санитар)', type: 'fish', price: 45, color: '#a3e635', accentColor: '#65a30d', adultTimeDays: 5, nocturnal: true, icon: '🐠' },
+            { id: 'beta', name: 'Малек Петушка (Элегантный)', type: 'fish', price: 80, color: '#ec4899', accentColor: '#9333ea', adultTimeDays: 7, nocturnal: false, icon: '🐠' },
             { id: 'expand', name: 'Расширение аквариума (+2 места)', type: 'upgrade', price: 80, icon: '📐' },
             { id: 'castle', name: 'Замок', type: 'decor', price: 150, icon: '🏰' },
             { id: 'plant', name: 'Водоросли', type: 'decor', price: 40, icon: '🌿' }
@@ -485,8 +482,8 @@
             loadGameData();
 
             if (!gameData.fishes || gameData.fishes.length === 0) {
-                gameData.fishes.push(createFish('guppy', '#eab308', 1, false));
-                gameData.fishes.push(createFish('corydoras', '#a3e635', 5, true));
+                gameData.fishes.push(createFish('guppy', '#eab308', '#f97316', 1, false));
+                gameData.fishes.push(createFish('corydoras', '#a3e635', '#65a30d', 5, true));
             }
 
             gameData.decorations = (gameData.decorations || []).filter(d => d.type !== 'chest');
@@ -502,7 +499,6 @@
             });
 
             applyPcModeUI();
-            updateStyleButtonUI();
             updateNetButtonUI();
             renderShop();
             renderInventory();
@@ -522,7 +518,7 @@
             let saved = localStorage.getItem(SAVE_KEY);
 
             if (!saved) {
-                for (let i = 10; i >= 1; i--) {
+                for (let i = 12; i >= 1; i--) {
                     const oldSave = localStorage.getItem(`pixel_aquarium_save_v${i}`) || localStorage.getItem('pixel_aquarium_save_master');
                     if (oldSave) {
                         saved = oldSave;
@@ -568,6 +564,7 @@
                         if (f.zProgress === undefined) f.zProgress = 0;
                         if (f.isDead === undefined) f.isDead = false;
                         if (f.decompositionTimer === undefined) f.decompositionTimer = 0;
+                        if (f.accentColor === undefined) f.accentColor = f.color;
                     });
                     saveGame();
                 } catch (e) {
@@ -579,12 +576,6 @@
         function setPcMode(enabled) {
             gameData.pcMode = enabled;
             applyPcModeUI();
-            saveGame();
-        }
-
-        function toggleFishStyle() {
-            gameData.realisticStyle = !gameData.realisticStyle;
-            updateStyleButtonUI();
             saveGame();
         }
 
@@ -602,19 +593,6 @@
                 btn.style.borderColor = '#15803d';
             } else {
                 btn.innerText = 'Сачок: ВЫКЛ';
-                btn.style.background = '#0891b2';
-                btn.style.borderColor = '#0e7490';
-            }
-        }
-
-        function updateStyleButtonUI() {
-            const btn = document.getElementById('styleBtn');
-            if (gameData.realisticStyle) {
-                btn.innerText = 'Стиль рыб: Реалистичный';
-                btn.style.background = '#16a34a';
-                btn.style.borderColor = '#15803d';
-            } else {
-                btn.innerText = 'Стиль рыб: Пиксельный';
                 btn.style.background = '#0891b2';
                 btn.style.borderColor = '#0e7490';
             }
@@ -676,7 +654,6 @@
 
         function loadGameManual() {
             loadGameData();
-            updateStyleButtonUI();
             updateNetButtonUI();
             renderShop();
             renderInventory();
@@ -685,7 +662,7 @@
             alert('Игра успешно загружена!');
         }
 
-        function createFish(type, color, adultDays = 7, nocturnal = false) {
+        function createFish(type, color, accentColor, adultDays = 7, nocturnal = false) {
             const minMs = 5 * 60 * 1000;
             const maxMs = 15 * 60 * 1000;
             const randomPoopInterval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
@@ -700,6 +677,7 @@
                 id: Math.random().toString(36).substr(2, 9),
                 type: type,
                 color: color,
+                accentColor: accentColor,
                 nocturnal: nocturnal,
                 x: Math.random() * (canvas.width - 120) + 60,
                 y: preferredY,
@@ -796,11 +774,9 @@
                 return;
             }
 
-            // Если включен сачок, проверяем клик по мертвой рыбке
             if (gameData.netMode && !gameData.activeNet) {
                 const clickedDeadFish = gameData.fishes.find(fish => fish.isDead && Math.hypot(fish.x - clickX, fish.y - clickY) < 30);
                 if (clickedDeadFish) {
-                    // Запускаем анимацию сачка
                     gameData.activeNet = {
                         x: clickedDeadFish.x,
                         targetY: clickedDeadFish.y,
@@ -975,7 +951,7 @@
                     return;
                 }
                 gameData.coins -= item.price;
-                gameData.fishes.push(createFish(item.id, item.color, item.adultTimeDays || 7, item.nocturnal || false));
+                gameData.fishes.push(createFish(item.id, item.color, item.accentColor, item.adultTimeDays || 7, item.nocturnal || false));
             } else if (item.type === 'upgrade') {
                 gameData.coins -= item.price;
                 gameData.maxFishCapacity += 2;
@@ -1051,7 +1027,7 @@
 
             let soldCount = 0;
             gameData.fishes = gameData.fishes.filter(fish => {
-                if (fish.isDead) return true; // мертвых не продать на рынок
+                if (fish.isDead) return true;
                 if (soldCount < count) {
                     const ageDays = (Date.now() - fish.birthTime) / (1000 * 60 * 60 * 24);
                     const adultDays = fish.adultDays || 7;
@@ -1386,9 +1362,12 @@
                 });
             }
 
-            const FULLNESS_DECAY_PER_FRAME = 100 / (360 * 60);
+            // Настройка расхода сытости: 100% сытости расходуется ровно за 5 часов реального времени (при 60 кадрах в секунду)
+            const FULLNESS_DECAY_PER_FRAME = 100 / (5 * 60 * 60 * 60); 
 
-            // Обновление анимации сачка
+            // Настройка падения здоровья: полное падение до 0 при голоде займет ровно 3 реальных календарных дня (72 часа)
+            const HEALTH_DECAY_PER_FRAME = 100 / (3 * 24 * 60 * 60 * 60);
+
             if (gameData.activeNet) {
                 const net = gameData.activeNet;
                 if (net.state === 'down') {
@@ -1396,7 +1375,6 @@
                     if (net.currentY >= net.targetY) {
                         net.currentY = net.targetY;
                         net.state = 'up';
-                        // Удаляем мертвую рыбку из массива
                         gameData.fishes = gameData.fishes.filter(f => f.id !== net.fishId);
                         renderInventory();
                         updateUI();
@@ -1411,10 +1389,9 @@
 
             gameData.fishes = gameData.fishes.filter((fish) => {
                 if (fish.isDead) {
-                    // Разложение мертвой рыбки на дне
-                    fish.y = 422; // на дне
-                    fish.decompositionTimer += 0.0005; // темнеет и разлагается со временем
-                    return fish.decompositionTimer < 1.0; // исчезает полностью при 1.0
+                    fish.y = 422;
+                    fish.decompositionTimer += 0.0005;
+                    return fish.decompositionTimer < 1.0;
                 }
 
                 const adultMs = (fish.adultDays || 7) * 24 * 60 * 60 * 1000;
@@ -1427,20 +1404,22 @@
                     return false;
                 }
 
+                // Уменьшаем сытность плавно (хватит на 5 часов)
                 fish.fullness = Math.max(0, fish.fullness - FULLNESS_DECAY_PER_FRAME);
+                
                 if (fish.fullness <= 0) {
-                    fish.health = Math.max(0, fish.health - FULLNESS_DECAY_PER_FRAME * 2.5);
+                    // Здоровье начинает снижаться только когда сытость полностью упала, смерть наступит через 3 дня
+                    fish.health = Math.max(0, fish.health - HEALTH_DECAY_PER_FRAME);
                 } else if (fish.fullness > 50 && fish.health < 100) {
-                    fish.health = Math.min(100, fish.health + FULLNESS_DECAY_PER_FRAME * 1.2);
+                    fish.health = Math.min(100, fish.health + FULLNESS_DECAY_PER_FRAME * 2);
                 }
 
                 if (fish.health <= 0) {
-                    // РЫБКА УМИРАЕТ И ПАДАЕТ НА ДНО
                     fish.isDead = true;
                     fish.decompositionTimer = 0;
                     fish.vx = 0;
                     fish.vy = 0;
-                    fish.angle = Math.PI / 2; // переворачивается набок/вниз
+                    fish.angle = Math.PI / 2;
                     return true;
                 }
 
@@ -1882,11 +1861,9 @@
                 }
 
                 if (fish.isDead) {
-                    drawDeadFish(fish);
-                } else if (gameData.realisticStyle) {
-                    drawRealisticFish(fish);
+                    drawHDCurveDeadFish(fish);
                 } else {
-                    drawPixelFish(fish);
+                    drawHDCurveFish(fish);
                 }
 
                 ctx.restore();
@@ -1896,7 +1873,6 @@
                 }
             });
 
-            // Отрисовка активного сачка
             if (gameData.activeNet) {
                 drawNet(gameData.activeNet);
             }
@@ -1906,33 +1882,180 @@
             }
         }
 
-        function drawDeadFish(fish) {
+        // --- ВЕКТОРНАЯ HD ОТРИСОВКА РЫБ ---
+        function drawHDCurveFish(fish) {
             ctx.save();
             ctx.translate(fish.x, fish.y);
-            ctx.rotate(Math.PI / 2); // Рыбка лежит на боку
+            ctx.rotate(fish.angle);
+
+            const s = fish.sizeFactor;
+            const z = fish.zProgress;
+
+            if (fish.tailAnimPhase === undefined) fish.tailAnimPhase = 0;
+            const isMoving = Math.abs(fish.vx) > 0.03 || Math.abs(fish.vy) > 0.03;
+            if (isMoving) {
+                fish.tailAnimPhase += 0.1;
+            }
+            const tailWag = isMoving ? Math.sin(fish.tailAnimPhase) * 8 : 0;
+
+            if (Math.abs(z) > 0.1) {
+                const widthScale = Math.max(0.35, 1.0 - Math.abs(z) * 0.65);
+                ctx.scale(s * widthScale, s);
+
+                const bodyGrad = ctx.createRadialGradient(-2, -3, 2, 0, 0, 16);
+                bodyGrad.addColorStop(0, '#ffffff');
+                bodyGrad.addColorStop(0.4, fish.color);
+                bodyGrad.addColorStop(1, fish.accentColor || '#000000');
+
+                ctx.fillStyle = bodyGrad;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = '#0f172a';
+                ctx.stroke();
+
+                if (z > 0) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(-3, -2, 2.5, 0, Math.PI * 2);
+                    ctx.arc(3, -2, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#000000';
+                    ctx.beginPath();
+                    ctx.arc(-3, -2, 1.2, 0, Math.PI * 2);
+                    ctx.arc(3, -2, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                if (fish.facingLeft) {
+                    ctx.scale(-s, s);
+                } else {
+                    ctx.scale(s, s);
+                }
+
+                const bodyGrad = ctx.createRadialGradient(-2, -3, 3, 0, 0, 20);
+                bodyGrad.addColorStop(0, '#ffffff');
+                bodyGrad.addColorStop(0.35, fish.color);
+                bodyGrad.addColorStop(1, fish.accentColor || '#000000');
+
+                // --- ХВОСТ ---
+                ctx.fillStyle = fish.accentColor || fish.color;
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                if (fish.type === 'beta') {
+                    ctx.moveTo(-10, 0);
+                    ctx.bezierCurveTo(-28, -22 + tailWag, -42, -26, -34, -6);
+                    ctx.bezierCurveTo(-48, 0, -38, 20, -34, 6);
+                    ctx.bezierCurveTo(-42, 26, -28, 22 + tailWag, -10, 0);
+                } else if (fish.type === 'goldfish') {
+                    ctx.moveTo(-12, 0);
+                    ctx.quadraticCurveTo(-32, -20 + tailWag, -36, -10);
+                    ctx.quadraticCurveTo(-22, 0, -36, 10);
+                    ctx.quadraticCurveTo(-32, 20 + tailWag, -12, 0);
+                } else if (fish.type === 'neon') {
+                    ctx.moveTo(-10, 0);
+                    ctx.lineTo(-26, -12 + tailWag);
+                    ctx.lineTo(-18, 0);
+                    ctx.lineTo(-26, 12 + tailWag);
+                } else {
+                    ctx.moveTo(-12, 0);
+                    ctx.lineTo(-28, -14 + tailWag);
+                    ctx.lineTo(-20, 0);
+                    ctx.lineTo(-28, 14 + tailWag);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // --- ПЛАВНИКИ ---
+                ctx.beginPath();
+                if (fish.type === 'beta') {
+                    ctx.moveTo(-4, -10);
+                    ctx.quadraticCurveTo(4, -26, 16, -12);
+                } else {
+                    ctx.moveTo(-4, -10);
+                    ctx.quadraticCurveTo(4, -18, 12, -8);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // --- ТЕЛО ---
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 18, 10, 0, 0, Math.PI * 2);
+                ctx.fillStyle = bodyGrad;
+                ctx.fill();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#0f172a';
+                ctx.stroke();
+
+                // --- НЕОНОВАЯ ПОЛОСКА ---
+                if (fish.type === 'neon') {
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(-14, -2);
+                    ctx.lineTo(10, -1);
+                    ctx.stroke();
+                }
+
+                // --- ЖАБРЫ ---
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(6, 0, 5, Math.PI * 0.3, Math.PI * 1.7);
+                ctx.stroke();
+
+                // --- ГЛАЗ (HD) ---
+                ctx.beginPath();
+                ctx.arc(10, -3, 3.2, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = '#0f172a';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(10.8, -3, 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f172a';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(11.5, -4, 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function drawHDCurveDeadFish(fish) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(Math.PI / 2);
 
             const s = fish.sizeFactor;
             ctx.scale(s, s);
 
-            // Затемнение и разложение со временем (оттенок серого/грязно-бурого)
-            const decay = fish.decompositionTimer; // от 0 до 1
+            const decay = fish.decompositionTimer;
             ctx.globalAlpha = Math.max(0.15, 1.0 - decay * 0.75);
 
-            ctx.fillStyle = '#334155'; // темный разложившийся цвет
+            ctx.fillStyle = '#475569';
             ctx.strokeStyle = '#0f172a';
             ctx.lineWidth = 1.5;
 
             ctx.beginPath();
-            ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
 
-            // Крестик вместо глаза (признак смерти)
             ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.moveTo(6, -2); ctx.lineTo(10, 2);
-            ctx.moveTo(10, -2); ctx.lineTo(6, 2);
+            ctx.moveTo(6, -3); ctx.lineTo(11, 2);
+            ctx.moveTo(11, -3); ctx.lineTo(6, 2);
             ctx.stroke();
 
             ctx.restore();
@@ -1942,7 +2065,6 @@
             ctx.save();
             ctx.translate(net.x, net.currentY);
 
-            // Ручка сачка уходит вверх
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -1950,7 +2072,6 @@
             ctx.lineTo(0, 0);
             ctx.stroke();
 
-            // Обод и сетка сачка
             ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
             ctx.strokeStyle = '#cbd5e1';
             ctx.lineWidth = 2;
@@ -1959,7 +2080,6 @@
             ctx.fill();
             ctx.stroke();
 
-            // Если сачок опустился за рыбкой и поднимает её
             if (net.state === 'up') {
                 const fish = gameData.fishes.find(f => f.id === net.fishId);
                 if (fish) {
@@ -2089,229 +2209,6 @@
                 ctx.fillStyle = '#1e293b';
                 ctx.fillRect(-10, -25, 20, 25);
             }
-            ctx.restore();
-        }
-
-        function drawPixelFish(fish) {
-            ctx.save();
-            ctx.translate(fish.x, fish.y);
-            ctx.rotate(fish.angle);
-
-            const s = fish.sizeFactor;
-            const z = fish.zProgress;
-
-            if (fish.tailAnimPhase === undefined) fish.tailAnimPhase = 0;
-            const isMoving = Math.abs(fish.vx) > 0.03 || Math.abs(fish.vy) > 0.03;
-            if (isMoving) {
-                fish.tailAnimPhase += 0.08;
-            }
-            const tailWag = isMoving ? Math.sin(fish.tailAnimPhase) * 4.5 : 0;
-
-            ctx.strokeStyle = '#0f172a';
-            ctx.lineWidth = 1.5;
-
-            if (Math.abs(z) > 0.1) {
-                const widthScale = Math.max(0.35, 1.0 - Math.abs(z) * 0.65);
-                ctx.scale(s * widthScale, s);
-
-                ctx.fillStyle = fish.color;
-                ctx.fillRect(-10, -7, 20, 14);
-                ctx.strokeRect(-10, -7, 20, 14);
-
-                if (z > 0) {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(-5, -3, 3, 3);
-                    ctx.fillRect(2, -3, 3, 3);
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(-4, -2, 1, 1);
-                    ctx.fillRect(3, -2, 1, 1);
-                } else {
-                    ctx.fillStyle = '#b45309';
-                    ctx.fillRect(-12, -10, 24, 4);
-                }
-            } else {
-                if (fish.facingLeft) {
-                    ctx.scale(-s, s);
-                } else {
-                    ctx.scale(s, s);
-                }
-
-                if (fish.type === 'guppy') {
-                    ctx.fillStyle = fish.color;
-                    ctx.beginPath();
-                    ctx.moveTo(-12, 0);
-                    ctx.lineTo(-22, -8 - tailWag);
-                    ctx.lineTo(-22, 8 + tailWag);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-
-                    ctx.fillRect(-12, -6, 24, 12);
-                    ctx.strokeRect(-12, -6, 24, 12);
-
-                    ctx.fillStyle = '#facc15';
-                    ctx.fillRect(-16, -4, 8, 8);
-                } else if (fish.type === 'goldfish') {
-                    ctx.fillStyle = fish.color;
-                    ctx.beginPath();
-                    ctx.moveTo(-16, 0);
-                    ctx.lineTo(-28, -12 - tailWag);
-                    ctx.lineTo(-24, 0);
-                    ctx.lineTo(-28, 12 + tailWag);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-
-                    ctx.fillRect(-16, -10, 30, 20);
-                    ctx.strokeRect(-16, -10, 30, 20);
-                    ctx.fillRect(-8, -14, 16, 28);
-                    ctx.strokeRect(-8, -14, 16, 28);
-                } else if (fish.type === 'corydoras') {
-                    ctx.fillStyle = fish.color;
-                    ctx.beginPath();
-                    ctx.moveTo(-14, 0);
-                    ctx.lineTo(-22, -7 - tailWag);
-                    ctx.lineTo(-22, 7 + tailWag);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-
-                    ctx.fillRect(-14, -8, 28, 16);
-                    ctx.strokeRect(-14, -8, 28, 16);
-                    ctx.fillStyle = '#65a30d';
-                    ctx.fillRect(-10, -4, 20, 8);
-                } else if (fish.type === 'neon') {
-                    ctx.fillStyle = fish.color;
-                    ctx.beginPath();
-                    ctx.moveTo(-14, 0);
-                    ctx.lineTo(-22, -6 - tailWag);
-                    ctx.lineTo(-18, 0);
-                    ctx.lineTo(-22, 6 + tailWag);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-
-                    ctx.fillRect(-14, -5, 28, 10);
-                    ctx.strokeRect(-14, -5, 28, 10);
-                    ctx.fillStyle = '#38bdf8';
-                    ctx.fillRect(-12, -2, 24, 4);
-                } else if (fish.type === 'beta') {
-                    ctx.fillStyle = fish.color;
-                    ctx.beginPath();
-                    ctx.moveTo(-12, 0);
-                    ctx.lineTo(-26, -14 - tailWag * 1.5);
-                    ctx.lineTo(-20, 0);
-                    ctx.lineTo(-26, 14 + tailWag * 1.5);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-
-                    ctx.fillRect(-12, -7, 24, 14);
-                    ctx.strokeRect(-12, -7, 24, 14);
-                    ctx.fillRect(-4, -15, 12, 8);
-                }
-
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(6, -4, 4, 4);
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(7, -3, 2, 2);
-
-                if (fish.sizeFactor >= 2.1) {
-                    ctx.fillStyle = '#facc15';
-                    ctx.fillRect(-4, -18, 8, 4);
-                    ctx.fillRect(-2, -22, 4, 4);
-                }
-            }
-
-            ctx.restore();
-        }
-
-        function drawRealisticFish(fish) {
-            ctx.save();
-            ctx.translate(fish.x, fish.y);
-            ctx.rotate(fish.angle);
-
-            const s = fish.sizeFactor;
-            const z = fish.zProgress;
-
-            if (fish.tailAnimPhase === undefined) fish.tailAnimPhase = 0;
-            const isMoving = Math.abs(fish.vx) > 0.03 || Math.abs(fish.vy) > 0.03;
-            if (isMoving) {
-                fish.tailAnimPhase += 0.08;
-            }
-            const tailWag = isMoving ? Math.sin(fish.tailAnimPhase) * 6.5 : 0;
-
-            if (Math.abs(z) > 0.1) {
-                const widthScale = Math.max(0.3, 1.0 - Math.abs(z) * 0.7);
-                ctx.scale(s * widthScale, s);
-                ctx.beginPath();
-                ctx.arc(0, 0, 12, 0, Math.PI * 2);
-                ctx.fillStyle = fish.color;
-                ctx.fill();
-                ctx.lineWidth = 1.5;
-                ctx.strokeStyle = '#0f172a';
-                ctx.stroke();
-            } else {
-                if (fish.facingLeft) {
-                    ctx.scale(-s, s);
-                } else {
-                    ctx.scale(s, s);
-                }
-
-                ctx.fillStyle = fish.color;
-                ctx.beginPath();
-                if (fish.type === 'beta') {
-                    ctx.moveTo(-10, 0);
-                    ctx.bezierCurveTo(-25, -18 + tailWag, -35, -22, -30, -5);
-                    ctx.bezierCurveTo(-40, 0, -35, 15, -30, 5);
-                    ctx.bezierCurveTo(-35, 22, -25, 18 + tailWag, -10, 0);
-                } else if (fish.type === 'goldfish') {
-                    ctx.moveTo(-12, 0);
-                    ctx.quadraticCurveTo(-28, -16 + tailWag, -32, -8);
-                    ctx.quadraticCurveTo(-22, 0, -32, 8);
-                    ctx.quadraticCurveTo(-28, 16 + tailWag, -12, 0);
-                } else {
-                    ctx.moveTo(-10, 0);
-                    ctx.lineTo(-24, -12 + tailWag);
-                    ctx.lineTo(-20, 0);
-                    ctx.lineTo(-24, 12 + tailWag);
-                }
-                ctx.closePath();
-                ctx.fill();
-                ctx.lineWidth = 1.2;
-                ctx.strokeStyle = '#0f172a';
-                ctx.stroke();
-
-                const bodyGrad = ctx.createRadialGradient(-2, -2, 2, 0, 0, 16);
-                bodyGrad.addColorStop(0, '#ffffff');
-                bodyGrad.addColorStop(0.3, fish.color);
-                bodyGrad.addColorStop(1, '#00000044');
-
-                ctx.beginPath();
-                ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI * 2);
-                ctx.fillStyle = bodyGrad;
-                ctx.fill();
-                ctx.lineWidth = 1.5;
-                ctx.strokeStyle = '#0f172a';
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.moveTo(-4, -9);
-                ctx.quadraticCurveTo(2, -18, 8, -9);
-                ctx.fillStyle = fish.color;
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.arc(8, -2, 2.5, 0, Math.PI * 2);
-                ctx.fillStyle = '#ffffff';
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(8.5, -2, 1.2, 0, Math.PI * 2);
-                ctx.fillStyle = '#000000';
-                ctx.fill();
-            }
-
             ctx.restore();
         }
 
