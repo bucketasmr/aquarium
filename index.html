@@ -1057,7 +1057,7 @@
 
         function sellBulkMarketFish(count) {
             if (gameData.inventory.length === 0) {
-                alert('Нет готовых рыб на рынке!');
+                alert('Нет готовых рыб на рынок!');
                 return;
             }
 
@@ -1362,10 +1362,10 @@
                 });
             }
 
-            // Настройка расхода сытости: 100% сытости расходуется ровно за 5 часов реального времени (при 60 кадрах в секунду)
+            // Настройка сытости: 100% сытости расходуется ровно за 5 часов реального времени
             const FULLNESS_DECAY_PER_FRAME = 100 / (5 * 60 * 60 * 60); 
 
-            // Настройка падения здоровья: полное падение до 0 при голоде займет ровно 3 реальных календарных дня (72 часа)
+            // Настройка здоровья: падение до 0 при голоде занимает 3 реальных календарных дня (72 часа)
             const HEALTH_DECAY_PER_FRAME = 100 / (3 * 24 * 60 * 60 * 60);
 
             if (gameData.activeNet) {
@@ -1404,11 +1404,9 @@
                     return false;
                 }
 
-                // Уменьшаем сытность плавно (хватит на 5 часов)
                 fish.fullness = Math.max(0, fish.fullness - FULLNESS_DECAY_PER_FRAME);
                 
                 if (fish.fullness <= 0) {
-                    // Здоровье начинает снижаться только когда сытость полностью упала, смерть наступит через 3 дня
                     fish.health = Math.max(0, fish.health - HEALTH_DECAY_PER_FRAME);
                 } else if (fish.fullness > 50 && fish.health < 100) {
                     fish.health = Math.min(100, fish.health + FULLNESS_DECAY_PER_FRAME * 2);
@@ -1705,7 +1703,12 @@
                 renderInventory();
             }
 
-            const pollutionRate = gameData.filterOn ? 0.0003 : 0.0012;
+            // Настройка чистоты воды: падение со 100% до 0% ровно за 7 реальных календарных дней (7 * 24 * 3600 секунд)
+            // Если фильтр выключен, падение занимает 7 дней. Если фильтр ВКЛЮЧЕН, вода загрязняется в 3 раза медленнее.
+            const totalFramesForWeek = 7 * 24 * 60 * 60 * 60;
+            const pollutionPerFrame = 100 / totalFramesForWeek;
+            const pollutionRate = gameData.filterOn ? pollutionPerFrame / 3 : pollutionPerFrame;
+
             gameData.waterCleanliness = Math.max(0, gameData.waterCleanliness - pollutionRate);
         }
 
