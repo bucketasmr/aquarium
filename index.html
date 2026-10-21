@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Пиксельный Симулятор Аквариума</title>
+    <title>Симулятор Аквариума (Пиксели / Реализм)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -42,7 +42,7 @@
             border-radius: 8px;
             transition: max-width 0.3s ease;
         }
-        /* Режим ПК: три колонки, ширина адаптирована под большой аквариум по центру */
+        
         .container.pc-mode {
             max-width: 1450px !important;
             display: grid;
@@ -121,6 +121,16 @@
             cursor: pointer;
             touch-action: none;
         }
+
+        canvas:fullscreen {
+            width: 100vw !important;
+            height: 100vh !important;
+            object-fit: contain;
+            border: none;
+            border-radius: 0;
+            background: #020617;
+        }
+
         .controls {
             display: flex;
             gap: 10px;
@@ -187,6 +197,14 @@
         button.dark-mode:hover {
             background: #64748b;
         }
+        button.cyan {
+            background: #0891b2;
+            border-color: #0e7490;
+            box-shadow: 0 4px 0 #155e75;
+        }
+        button.cyan:hover {
+            background: #06b6d4;
+        }
         .panels-box {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -217,7 +235,7 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-height: 160px;
+            max-height: 240px;
             overflow-y: auto;
             padding-right: 4px;
         }
@@ -226,15 +244,107 @@
             justify-content: space-between;
             align-items: center;
             background: #1f2937;
-            padding: 6px 10px;
-            border-radius: 4px;
+            padding: 10px;
+            border-radius: 6px;
             border: 1px solid #374151;
             font-size: 0.85rem;
         }
+        .inv-item-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            margin-right: 12px;
+        }
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            font-size: 0.78rem;
+            color: #9ca3af;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .stat-bar-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: bold;
+        }
+
+        .bar-container {
+            position: relative;
+            width: 80px;
+            height: 14px;
+            background: #0f172a;
+            border: 2px solid #d97706;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .bar-fill-wrapper {
+            height: 100%;
+            width: 100%;
+            position: relative;
+            transition: width 0.3s ease;
+        }
+        .bar-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.45), rgba(255,255,255,0.05));
+            pointer-events: none;
+        }
+        .bar-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 14px,
+                rgba(0, 0, 0, 0.4) 14px,
+                rgba(0, 0, 0, 0.4) 16px
+            );
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .bar-red {
+            background: linear-gradient(to bottom, #f87171 0%, #ef4444 50%, #991b1b 100%);
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+        }
+        .bar-green {
+            background: linear-gradient(to bottom, #4ade80 0%, #22c55e 50%, #14532d 100%);
+            box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+        }
+        .bar-yellow {
+            background: linear-gradient(to bottom, #fde047 0%, #eab308 50%, #713f12 100%);
+            box-shadow: 0 0 6px rgba(234, 179, 8, 0.6);
+        }
+
         .shop-item button, .inv-item button, .quest-item button {
             padding: 4px 8px;
             font-size: 0.8rem;
             box-shadow: 0 2px 0 #1e40af;
+        }
+        .bulk-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .bulk-actions button {
+            flex: 1;
+            font-size: 0.8rem;
+            padding: 6px 10px;
         }
         .info-text {
             font-size: 0.85rem;
@@ -246,21 +356,20 @@
 <body>
 
     <div class="container" id="mainContainer">
-        <h1>Пиксельный Аквариум</h1>
+        <h1>Симулятор Аквариума</h1>
         
-        <!-- Верхняя панель статуса -->
         <div class="top-panel">
             <div class="stat-group">
                 <div class="stat-item">Монеты: <span id="coinsVal">150</span> 🪙</div>
                 <div class="stat-item">Рыбки: <span id="fishCountVal">0</span>/<span id="maxFishVal">4</span> 🐠</div>
                 <div class="stat-item">Чистота: <span id="cleanVal">100</span>% 💧</div>
             </div>
-            <div class="stat-item">
-                Кормление: <span id="feedTimerVal">Готово!</span> ⏳
+            <div class="stat-group">
+                <div class="stat-item" id="timeOfDayLabel">Время: День ☀️</div>
+                <div class="stat-item">Кормление: <span id="feedTimerVal">Готово!</span> ⏳</div>
             </div>
         </div>
 
-        <!-- Левый сайдбар для режима ПК (Задания) -->
         <div class="left-sidebar" id="leftSidebar" style="display: none;">
             <div class="panel">
                 <h3>Задания</h3>
@@ -268,10 +377,8 @@
             </div>
         </div>
 
-        <!-- Холст аквариума -->
         <canvas id="aquariumCanvas" width="864" height="450"></canvas>
 
-        <!-- Правый сайдбар для режима ПК (Магазин) -->
         <div class="right-sidebar" id="rightSidebar" style="display: none;">
             <div class="panel">
                 <h3>Магазин <span style="font-size: 0.95rem; color: #facc15;" id="shopCoinsVal">150 🪙</span></h3>
@@ -279,18 +386,19 @@
             </div>
         </div>
 
-        <!-- Кнопки управления -->
         <div class="controls">
             <button id="feedBtn" class="success" onclick="feedFish()">Покормить (2р/день)</button>
             <button id="cleanBtn" class="warning" onclick="cleanWater()">Почистить воду (20 🪙)</button>
+            <button id="fullCleanBtn" class="warning" style="background:#b45309; border-color:#92400e;" onclick="fullCleanWater()">Полная очистка (35 🪙)</button>
             <button id="filterBtn" onclick="toggleFilter()">Фильтр: ВЫКЛ</button>
+            <button id="styleBtn" class="cyan" onclick="toggleFishStyle()">Стиль рыб: Пиксельный</button>
+            <button class="cyan" onclick="toggleCanvasFullScreen()">На весь экран ⛶</button>
             <button class="purple" onclick="setPcMode(true)" id="pcModeBtn">Режим ПК</button>
             <button class="dark-mode" onclick="setPcMode(false)" id="stdModeBtn">Стандартный режим</button>
             <button class="purple" onclick="saveGameManual()">Сохранить</button>
             <button class="purple" onclick="loadGameManual()">Загрузить</button>
         </div>
 
-        <!-- Обычные блоки Магазин/Задания (для стандартного вида) -->
         <div class="panels-box" id="standardPanels">
             <div class="panel">
                 <h3>Задания</h3>
@@ -303,9 +411,15 @@
         </div>
 
         <div class="panel bottom-full">
-            <h3>Рынок взрослых рыб</h3>
+            <h3>Список рыб и рынок</h3>
+            <div class="bulk-actions">
+                <button class="warning" onclick="sellBulkAquariumFish(5)">Продать 5 из аквариума</button>
+                <button class="warning" onclick="sellBulkAquariumFish(10)">Продать 10 из аквариума</button>
+                <button class="warning" onclick="sellBulkAquariumFish(9999)">Продать всех из акв.</button>
+                <button class="success" onclick="sellBulkMarketFish(9999)">Продать всех на рынок</button>
+            </div>
             <div class="inventory-list" id="inventoryList"></div>
-            <div class="info-text">💡 Используйте кнопки управления режимами для настройки интерфейса под себя!</div>
+            <div class="info-text">💡 Показатели над рыбами сделаны прозрачными на 40%!</div>
         </div>
     </div>
 
@@ -320,13 +434,18 @@
             maxFishCapacity: 4,
             waterCleanliness: 100,
             filterOn: false,
+            lightOn: false,
             pcMode: false,
+            realisticStyle: false,
+            showFishBars: true,
             lastFeedTime: 0,
             fishes: [],
             decorations: [],
             inventory: [],
+            foods: [],
             poops: [],
             fishBubbles: [],
+            sandDusts: [],
             treasures: [],
             chestTimer: 0,
             quests: {
@@ -345,7 +464,6 @@
             { id: 'neon', name: 'Малек Неона (Яркий косяк)', type: 'fish', price: 30, color: '#06b6d4', adultTimeDays: 7 },
             { id: 'beta', name: 'Малек Петушка (Элегантный)', type: 'fish', price: 80, color: '#ec4899', adultTimeDays: 7 },
             { id: 'expand', name: 'Расширение аквариума (+2 места)', type: 'upgrade', price: 80 },
-            { id: 'chest', name: 'Сундук с сокровищами', type: 'decor', price: 100 },
             { id: 'castle', name: 'Замок', type: 'decor', price: 150 },
             { id: 'plant', name: 'Водоросли', type: 'decor', price: 40 }
         ];
@@ -357,12 +475,21 @@
                 gameData.fishes.push(createFish('guppy', '#eab308', 1));
                 gameData.fishes.push(createFish('goldfish', '#f97316', 7));
             }
-            if (!gameData.decorations || gameData.decorations.length === 0) {
-                gameData.decorations.push({ type: 'plant', x: 80, y: 410 });
-                gameData.decorations.push({ type: 'chest', x: 720, y: 410 });
+
+            gameData.decorations = (gameData.decorations || []).filter(d => d.type !== 'chest');
+            gameData.decorations.push({ type: 'chest', x: 720, y: 410 });
+
+            if (!gameData.decorations.some(d => d.type === 'plant')) {
+                gameData.decorations.push({ type: 'plant', x: 80, y: 410, scaleY: 1.0 });
+                gameData.decorations.push({ type: 'plant', x: 220, y: 410, scaleY: 1.0 });
             }
 
+            gameData.decorations.forEach(d => {
+                if (d.type === 'plant' && d.scaleY === undefined) d.scaleY = 1.0;
+            });
+
             applyPcModeUI();
+            updateStyleButtonUI();
             renderShop();
             renderInventory();
             renderQuests();
@@ -394,6 +521,14 @@
                 try {
                     const parsed = JSON.parse(saved);
                     gameData = { ...gameData, ...parsed };
+                    if (!gameData.foods) gameData.foods = [];
+                    if (gameData.showFishBars === undefined) gameData.showFishBars = true;
+                    gameData.fishes.forEach(f => {
+                        if (f.tailAnimPhase === undefined) f.tailAnimPhase = Math.random() * Math.PI * 2;
+                        if (f.health === undefined) f.health = Math.floor(Math.random() * 21) + 80;
+                        if (f.fullness === undefined) f.fullness = 0;
+                        if (f.happiness === undefined) f.happiness = 100;
+                    });
                     saveGame();
                 } catch (e) {
                     console.error('Ошибка загрузки сохранения', e);
@@ -405,6 +540,45 @@
             gameData.pcMode = enabled;
             applyPcModeUI();
             saveGame();
+        }
+
+        function toggleFishStyle() {
+            gameData.realisticStyle = !gameData.realisticStyle;
+            updateStyleButtonUI();
+            saveGame();
+        }
+
+        function updateStyleButtonUI() {
+            const btn = document.getElementById('styleBtn');
+            if (gameData.realisticStyle) {
+                btn.innerText = 'Стиль рыб: Реалистичный';
+                btn.style.background = '#16a34a';
+                btn.style.borderColor = '#15803d';
+            } else {
+                btn.innerText = 'Стиль рыб: Пиксельный';
+                btn.style.background = '#0891b2';
+                btn.style.borderColor = '#0e7490';
+            }
+        }
+
+        function toggleCanvasFullScreen() {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {
+                if (canvas.requestFullscreen) {
+                    canvas.requestFullscreen();
+                } else if (canvas.webkitRequestFullscreen) {
+                    canvas.webkitRequestFullscreen();
+                } else if (canvas.mozRequestFullScreen) {
+                    canvas.mozRequestFullScreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                }
+            }
         }
 
         function applyPcModeUI() {
@@ -443,6 +617,7 @@
 
         function loadGameManual() {
             loadGameData();
+            updateStyleButtonUI();
             renderShop();
             renderInventory();
             renderQuests();
@@ -455,27 +630,39 @@
             const maxMs = 15 * 60 * 1000;
             const randomPoopInterval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 
+            let preferredY = 200;
+            if (type === 'neon' || type === 'guppy') preferredY = 80 + Math.random() * 150;
+            if (type === 'goldfish') preferredY = 180 + Math.random() * 160;
+            if (type === 'beta') preferredY = 120 + Math.random() * 200;
+
             return {
                 id: Math.random().toString(36).substr(2, 9),
                 type: type,
                 color: color,
-                x: Math.random() * (canvas.width - 100) + 50,
-                y: Math.random() * 350 + 50,
-                vx: 0,
-                vy: 0,
-                targetX: Math.random() * (canvas.width - 80) + 40,
-                targetY: Math.random() * 360 + 50,
+                x: Math.random() * (canvas.width - 120) + 60,
+                y: preferredY,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: (Math.random() - 0.5) * 0.2,
+                targetX: Math.random() * (canvas.width - 120) + 60,
+                targetY: preferredY,
                 angle: 0,
+                facingLeft: false,
+                zRotationTimer: Math.floor(Math.random() * 500) + 300,
+                zMode: 0,
+                zProgress: 0,
                 state: 'swim',
-                stateTimer: Math.floor(Math.random() * 400) + 300,
+                stateTimer: Math.floor(Math.random() * 400) + 200,
                 inspectPauseTimer: 0,
                 scaredTimer: 0,
                 birthTime: Date.now(),
                 adultDays: adultDays,
-                fed: true,
                 sizeFactor: 1.0,
                 lastPoopTime: Date.now(),
-                nextPoopInterval: randomPoopInterval
+                nextPoopInterval: randomPoopInterval,
+                tailAnimPhase: Math.random() * Math.PI * 2,
+                health: Math.floor(Math.random() * 21) + 80,
+                fullness: 0,
+                happiness: 100
             };
         }
 
@@ -500,12 +687,27 @@
             const clickX = (clientX - rect.left) * scaleX;
             const clickY = (clientY - rect.top) * scaleY;
 
+            if (clickX >= 10 && clickX <= 180 && clickY >= 5 && clickY <= 30) {
+                gameData.showFishBars = !gameData.showFishBars;
+                saveGame();
+                updateUI();
+                return;
+            }
+
+            if (clickX >= canvas.width / 2 - 60 && clickX <= canvas.width / 2 + 60 && clickY >= 0 && clickY <= 35) {
+                gameData.lightOn = !gameData.lightOn;
+                saveGame();
+                updateUI();
+                return;
+            }
+
             if (clickX >= 770 && clickX <= 815 && clickY >= 335 && clickY <= 410) {
                 toggleFilter();
                 return;
             }
 
             let collected = false;
+
             gameData.treasures = gameData.treasures.filter(t => {
                 const dist = Math.hypot(t.x - clickX, t.y - clickY);
                 if (dist < 22) {
@@ -546,7 +748,22 @@
                 return;
             }
 
+            spawnFood(clickX, clickY);
             triggerScare(clickX, clickY, 180);
+        }
+
+        function spawnFood(x, y) {
+            gameData.foods.push({
+                x: x,
+                y: y,
+                targetY: 410,
+                falling: true,
+                spawnTime: Date.now()
+            });
+            gameData.quests.feedCount++;
+            saveGame();
+            updateUI();
+            renderQuests();
         }
 
         function triggerScare(x, y, radius) {
@@ -556,12 +773,14 @@
                     const angle = Math.atan2(fish.y - y, fish.x - x);
                     const escapeDist = 200 + Math.random() * 100;
                     
-                    fish.targetX = Math.max(40, Math.min(canvas.width - 40, fish.x + Math.cos(angle) * escapeDist));
-                    fish.targetY = Math.max(40, Math.min(410, fish.y + Math.sin(angle) * escapeDist));
+                    fish.targetX = Math.max(60, Math.min(canvas.width - 60, fish.x + Math.cos(angle) * escapeDist));
+                    fish.targetY = Math.max(50, Math.min(380, fish.y + Math.sin(angle) * escapeDist));
                     
                     fish.state = 'dash';
                     fish.inspectPauseTimer = 0;
-                    fish.scaredTimer = 110;
+                    fish.scaredTimer = 80;
+                    fish.stateTimer = 200;
+                    fish.zMode = 0;
                 }
             });
         }
@@ -574,12 +793,14 @@
             if (gameData.lastFeedTime > 0 && elapsed < FEED_INTERVAL) return;
 
             gameData.lastFeedTime = now;
-            gameData.fishes.forEach(f => f.fed = true);
+            feedFishRandom();
             gameData.waterCleanliness = Math.max(0, gameData.waterCleanliness - 5);
-            gameData.quests.feedCount++;
             saveGame();
             updateUI();
-            renderQuests();
+        }
+
+        function feedFishRandom() {
+            spawnFood(Math.random() * (canvas.width - 100) + 50, 40 + Math.random() * 50);
         }
 
         function cleanWater() {
@@ -589,7 +810,19 @@
             }
             gameData.coins -= 20;
             gameData.waterCleanliness = 100;
+            saveGame();
+            updateUI();
+        }
+
+        function fullCleanWater() {
+            if (gameData.coins < 35) {
+                alert('Недостаточно монет! Требуется 35 🪙');
+                return;
+            }
+            gameData.coins -= 35;
+            gameData.waterCleanliness = 100;
             gameData.poops = [];
+            gameData.foods = [];
             saveGame();
             updateUI();
         }
@@ -622,13 +855,38 @@
                 gameData.decorations.push({
                     type: item.id,
                     x: Math.random() * (canvas.width - 160) + 80,
-                    y: 410
+                    y: 410,
+                    scaleY: item.id === 'plant' ? 1.0 : undefined
                 });
             }
 
             saveGame();
             renderInventory();
             updateUI();
+        }
+
+        function sellFishFromAquarium(fishId) {
+            const index = gameData.fishes.findIndex(f => f.id === fishId);
+            if (index !== -1) {
+                const fish = gameData.fishes[index];
+                const ageDays = (Date.now() - fish.birthTime) / (1000 * 60 * 60 * 24);
+                const adultDays = fish.adultDays || 7;
+                const percent = Math.min(1, ageDays / adultDays);
+
+                let maxReward = 60;
+                if (fish.type === 'guppy') maxReward = 35;
+                if (fish.type === 'beta') maxReward = 100;
+                if (fish.type === 'neon') maxReward = 40;
+
+                const healthFactor = (fish.health || 100) / 100;
+                const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
+
+                gameData.coins += reward;
+                gameData.fishes.splice(index, 1);
+                saveGame();
+                renderInventory();
+                updateUI();
+            }
         }
 
         function sellFish(invId) {
@@ -643,6 +901,58 @@
                 gameData.coins += reward;
                 gameData.inventory.splice(index, 1);
             }
+            saveGame();
+            renderInventory();
+            updateUI();
+        }
+
+        function sellBulkAquariumFish(count) {
+            if (gameData.fishes.length === 0) {
+                alert('В аквариуме нет рыб!');
+                return;
+            }
+
+            let soldCount = 0;
+            while (gameData.fishes.length > 0 && soldCount < count) {
+                const fish = gameData.fishes.shift();
+                const ageDays = (Date.now() - fish.birthTime) / (1000 * 60 * 60 * 24);
+                const adultDays = fish.adultDays || 7;
+                const percent = Math.min(1, ageDays / adultDays);
+
+                let maxReward = 60;
+                if (fish.type === 'guppy') maxReward = 35;
+                if (fish.type === 'beta') maxReward = 100;
+                if (fish.type === 'neon') maxReward = 40;
+
+                const healthFactor = (fish.health || 100) / 100;
+                const reward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
+                gameData.coins += reward;
+                soldCount++;
+            }
+
+            saveGame();
+            renderInventory();
+            updateUI();
+        }
+
+        function sellBulkMarketFish(count) {
+            if (gameData.inventory.length === 0) {
+                alert('Нет готовых рыб на рынке!');
+                return;
+            }
+
+            let soldCount = 0;
+            while (gameData.inventory.length > 0 && soldCount < count) {
+                const fish = gameData.inventory.pop();
+                let reward = 60;
+                if (fish.type === 'guppy') reward = 35;
+                if (fish.type === 'beta') reward = 100;
+                if (fish.type === 'neon') reward = 40;
+
+                gameData.coins += reward;
+                soldCount++;
+            }
+
             saveGame();
             renderInventory();
             updateUI();
@@ -706,24 +1016,88 @@
         function renderInventory() {
             const invList = document.getElementById('inventoryList');
             invList.innerHTML = '';
-            if (gameData.inventory.length === 0) {
-                invList.innerHTML = '<div class="info-text" style="text-align:center; padding:10px;">Нет рыб на продажу</div>';
+            
+            let html = '';
+
+            if (gameData.fishes.length === 0 && gameData.inventory.length === 0) {
+                invList.innerHTML = '<div class="info-text" style="text-align:center; padding:10px;">В аквариуме пока нет рыб</div>';
                 return;
             }
+
+            gameData.fishes.forEach(fish => {
+                const ageDays = ((Date.now() - fish.birthTime) / (1000 * 60 * 60 * 24)).toFixed(1);
+                const adultDays = fish.adultDays || 7;
+                const percent = Math.min(1, ageDays / adultDays);
+                const percentInt = Math.round(percent * 100);
+                
+                let maxReward = 60;
+                if (fish.type === 'guppy') maxReward = 35;
+                if (fish.type === 'beta') maxReward = 100;
+                if (fish.type === 'neon') maxReward = 40;
+                const healthFactor = (fish.health || 100) / 100;
+                const currentReward = Math.max(5, Math.round(maxReward * 0.7 * percent * healthFactor));
+
+                let fishTypeName = fish.type;
+                if (fish.type === 'guppy') fishTypeName = 'Гуппи';
+                if (fish.type === 'goldfish') fishTypeName = 'Золотая рыбка';
+                if (fish.type === 'neon') fishTypeName = 'Неон';
+                if (fish.type === 'beta') fishTypeName = 'Петушок';
+
+                const hVal = Math.round(fish.health);
+                const fVal = Math.round(fish.fullness);
+                const hpVal = Math.round(fish.happiness);
+
+                html += `
+                    <div class="inv-item">
+                        <div class="inv-item-details">
+                            <span>🐠 <b>${fishTypeName}</b> — Рост: ${percentInt}% (${ageDays} дн.)</span>
+                            <div class="stats-row">
+                                <span class="stat-bar-group">
+                                    ❤️ ${hVal}%
+                                    <div class="bar-container">
+                                        <div class="bar-fill-wrapper bar-red" style="width:${hVal}%"></div>
+                                    </div>
+                                </span>
+                                <span class="stat-bar-group">
+                                    🍗 ${fVal}%
+                                    <div class="bar-container">
+                                        <div class="bar-fill-wrapper bar-green" style="width:${fVal}%"></div>
+                                    </div>
+                                </span>
+                                <span class="stat-bar-group">
+                                    😊 ${hpVal}%
+                                    <div class="bar-container">
+                                        <div class="bar-fill-wrapper bar-yellow" style="width:${hpVal}%"></div>
+                                    </div>
+                                </span>
+                            </div>
+                        </div>
+                        <button class="warning" onclick="sellFishFromAquarium('${fish.id}')">Продать (${currentReward} 🪙)</button>
+                    </div>
+                `;
+            });
+
             gameData.inventory.forEach(fish => {
                 let price = 60;
                 if (fish.type === 'guppy') price = 35;
                 if (fish.type === 'beta') price = 100;
                 if (fish.type === 'neon') price = 40;
 
-                const div = document.createElement('div');
-                div.className = 'inv-item';
-                div.innerHTML = `
-                    <span>Взрослая (${fish.type}) — ${price} 🪙</span>
-                    <button class="success" onclick="sellFish('${fish.id}')">Продать</button>
+                let fishTypeName = fish.type;
+                if (fish.type === 'guppy') fishTypeName = 'Гуппи';
+                if (fish.type === 'goldfish') fishTypeName = 'Золотая рыбка';
+                if (fish.type === 'neon') fishTypeName = 'Неон';
+                if (fish.type === 'beta') fishTypeName = 'Петушок';
+
+                html += `
+                    <div class="inv-item">
+                        <span>✨ На рынок: Крупная (${fishTypeName}) — Готова!</span>
+                        <button class="success" onclick="sellFish('${fish.id}')">Продать (${price} 🪙)</button>
+                    </div>
                 `;
-                invList.appendChild(div);
             });
+
+            invList.innerHTML = html;
         }
 
         function updateUI() {
@@ -765,39 +1139,84 @@
             }
         }
 
+        function getTimeOfDay() {
+            const hour = new Date().getHours();
+            
+            if (hour >= 6 && hour < 12) return { name: 'Утро 🌅', top: '#7dd3fc', bot: '#0284c7', dark: false };
+            if (hour >= 12 && hour < 18) return { name: 'День ☀️', top: '#38bdf8', bot: '#0369a1', dark: false };
+            if (hour >= 18 && hour < 21) return { name: 'Вечер 🌇', top: '#c084fc', bot: '#1e3a8a', dark: true };
+            return { name: 'Ночь 🌙', top: '#1e1b4b', bot: '#0f172a', dark: true };
+        }
+
         function updateFish() {
             const now = Date.now();
             const toMoveToInventory = [];
 
-            const hasChest = gameData.decorations.some(d => d.type === 'chest');
-            if (hasChest) {
+            const timeData = getTimeOfDay();
+            const isDarkTime = timeData.dark && !gameData.lightOn;
+
+            const chest = gameData.decorations.find(d => d.type === 'chest');
+            if (chest && !isDarkTime) {
                 gameData.chestTimer++;
                 if (gameData.chestTimer > 1800) {
-                    const chest = gameData.decorations.find(d => d.type === 'chest');
                     gameData.treasures.push({
-                        x: chest.x + (Math.random() - 0.5) * 20,
-                        y: 390
+                        x: chest.x + (Math.random() - 0.5) * 16,
+                        y: 395
                     });
                     gameData.chestTimer = 0;
                 }
             }
 
+            gameData.decorations.forEach(dec => {
+                if (dec.type === 'plant') {
+                    if (dec.scaleY === undefined) dec.scaleY = 1.0;
+                    if (dec.scaleY < 1.0) {
+                        dec.scaleY += 0.0001;
+                    }
+                }
+            });
+
+            const FOOD_MAX_AGE = 30 * 60 * 1000;
+            gameData.foods = gameData.foods.filter(f => {
+                if (f.spawnTime && now - f.spawnTime >= FOOD_MAX_AGE) {
+                    return false;
+                }
+                if (f.falling) {
+                    f.y += 0.12;
+                    let hitGround = f.y >= f.targetY;
+                    if (!hitGround) {
+                        for (let other of gameData.foods) {
+                            if (!other.falling && Math.abs(other.x - f.x) < 8 && Math.abs(other.y - f.y) < 6) {
+                                hitGround = true;
+                                f.targetY = other.y - 4;
+                                break;
+                            }
+                        }
+                    }
+                    if (hitGround || f.y >= f.targetY) {
+                        f.y = f.targetY;
+                        f.falling = false;
+                    }
+                }
+                return true;
+            });
+
             if (mouseX !== -9999 && mouseY !== -9999) {
                 gameData.fishes.forEach(fish => {
                     const distToMouse = Math.hypot(fish.x - mouseX, fish.y - mouseY);
-                    if (distToMouse < 95) {
+                    if (distToMouse < 100) {
                         const angle = Math.atan2(fish.y - mouseY, fish.x - mouseX);
-                        const escapeDist = 140;
-                        fish.targetX = Math.max(40, Math.min(canvas.width - 40, fish.x + Math.cos(angle) * escapeDist));
-                        fish.targetY = Math.max(40, Math.min(410, fish.y + Math.sin(angle) * escapeDist));
+                        fish.targetX = Math.max(60, Math.min(canvas.width - 60, fish.x + Math.cos(angle) * 150));
+                        fish.targetY = Math.max(50, Math.min(380, fish.y + Math.sin(angle) * 150));
                         fish.state = 'dash';
-                        fish.inspectPauseTimer = 0;
-                        fish.scaredTimer = 45;
+                        fish.scaredTimer = 80;
                     }
                 });
             }
 
-            gameData.fishes.forEach((fish, index, arr) => {
+            const FULLNESS_DECAY_PER_FRAME = 100 / (72 * 3600 * 60);
+
+            gameData.fishes = gameData.fishes.filter((fish) => {
                 const adultMs = (fish.adultDays || 7) * 24 * 60 * 60 * 1000;
                 const age = now - fish.birthTime;
                 const progress = Math.min(1, age / adultMs);
@@ -805,10 +1224,49 @@
 
                 if (progress >= 1) {
                     toMoveToInventory.push(fish);
-                    return;
+                    return false;
                 }
 
-                if (now - fish.lastPoopTime >= fish.nextPoopInterval) {
+                fish.fullness = Math.max(0, fish.fullness - FULLNESS_DECAY_PER_FRAME);
+                if (fish.fullness <= 0) {
+                    fish.health = Math.max(0, fish.health - FULLNESS_DECAY_PER_FRAME * 2.5);
+                } else if (fish.fullness > 50 && fish.health < 100) {
+                    fish.health = Math.min(100, fish.health + FULLNESS_DECAY_PER_FRAME * 1.2);
+                }
+
+                if (fish.health <= 0) {
+                    return false;
+                }
+
+                let targetHappiness = (fish.health + fish.fullness + gameData.waterCleanliness) / 3;
+                fish.happiness += (targetHappiness - fish.happiness) * 0.01;
+
+                if (fish.fullness < 95 && gameData.foods.length > 0) {
+                    let closestFoodIdx = -1;
+                    let minDist = 9999;
+                    gameData.foods.forEach((food, fIdx) => {
+                        const d = Math.hypot(food.x - fish.x, food.y - fish.y);
+                        if (d < minDist) {
+                            minDist = d;
+                            closestFoodIdx = fIdx;
+                        }
+                    });
+
+                    if (closestFoodIdx !== -1) {
+                        const food = gameData.foods[closestFoodIdx];
+                        if (minDist < 20 * fish.sizeFactor) {
+                            gameData.foods.splice(closestFoodIdx, 1);
+                            fish.fullness = Math.min(100, fish.fullness + 35);
+                            fish.happiness = Math.min(100, fish.happiness + 15);
+                        } else if (fish.scaredTimer === 0) {
+                            fish.targetX = food.x;
+                            fish.targetY = food.falling ? food.y : 380;
+                            fish.state = 'swim';
+                        }
+                    }
+                }
+
+                if (!isDarkTime && now - fish.lastPoopTime >= fish.nextPoopInterval) {
                     gameData.poops.push({
                         x: fish.x,
                         y: fish.y,
@@ -821,103 +1279,164 @@
                     fish.nextPoopInterval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
                 }
 
-                if (Math.random() < 0.004) {
-                    const facingLeft = fish.targetX < fish.x;
-                    const mouthX = facingLeft ? fish.x - 18 * fish.sizeFactor : fish.x + 18 * fish.sizeFactor;
+                if (!isDarkTime && Math.random() < 0.0006 && Math.abs(fish.zProgress) <= 0.3) {
+                    const mouthX = fish.facingLeft ? fish.x - 14 * fish.sizeFactor : fish.x + 14 * fish.sizeFactor;
                     gameData.fishBubbles.push({
                         x: mouthX,
                         y: fish.y,
-                        speed: 0.8 + Math.random() * 0.5
+                        speed: 0.6 + Math.random() * 0.4
                     });
                 }
+
+                fish.zRotationTimer--;
+                if (fish.zRotationTimer <= 0) {
+                    fish.zRotationTimer = Math.floor(Math.random() * 500) + 300;
+                    const randChoice = Math.random();
+                    if (randChoice < 0.15) fish.zMode = 1;
+                    else if (randChoice < 0.3) fish.zMode = -1;
+                    else fish.zMode = 0;
+                }
+
+                const targetZProgress = fish.zMode;
+                fish.zProgress += (targetZProgress - fish.zProgress) * 0.04;
 
                 if (fish.scaredTimer > 0) {
                     fish.scaredTimer--;
                 } else if (fish.inspectPauseTimer > 0) {
                     fish.inspectPauseTimer--;
-                    fish.vx *= 0.5;
-                    fish.vy *= 0.5;
+                    fish.vx *= 0.9;
+                    fish.vy *= 0.9;
+                    
+                    if (fish.state === 'dig' && Math.random() < 0.3) {
+                        gameData.sandDusts.push({
+                            x: fish.x + (Math.random() - 0.5) * 16,
+                            y: 395,
+                            vy: -(0.3 + Math.random() * 0.4),
+                            alpha: 0.8
+                        });
+                    }
+
                     if (fish.inspectPauseTimer === 0) {
-                        fish.targetX = Math.random() * (canvas.width - 200) + 100;
-                        fish.targetY = Math.random() * 300 + 60;
                         fish.state = 'swim';
                     }
                 } else {
                     fish.stateTimer--;
                     if (fish.stateTimer <= 0) {
                         const rand = Math.random();
-                        if (rand < 0.6) {
+                        if (isDarkTime) {
+                            fish.state = rand < 0.5 ? 'swim' : 'rest';
+                            fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                            fish.targetY = Math.random() * 250 + 80;
+                            fish.stateTimer = Math.floor(Math.random() * 600) + 400;
+                        } else if (rand < 0.4) {
                             fish.state = 'swim';
-                            fish.targetX = Math.random() * (canvas.width - 80) + 40;
-                            fish.targetY = Math.random() * 360 + 40;
-                            fish.stateTimer = Math.floor(Math.random() * 400) + 250;
-                        } else if (rand < 0.75) {
+                            fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                            
+                            let yRangeMin = 50, yRangeMax = 320;
+                            if (fish.type === 'neon' || fish.type === 'guppy') { yRangeMin = 50; yRangeMax = 200; }
+                            if (fish.type === 'goldfish') { yRangeMin = 180; yRangeMax = 370; }
+
+                            fish.targetY = Math.random() * (yRangeMax - yRangeMin) + yRangeMin;
+                            fish.stateTimer = Math.floor(Math.random() * 400) + 200;
+                        } else if (rand < 0.6) {
                             fish.state = 'rest';
-                            fish.targetX = fish.x;
-                            fish.targetY = fish.y;
-                            fish.stateTimer = Math.floor(Math.random() * 80) + 40;
-                        } else if (rand < 0.85) {
-                            fish.state = 'dash';
-                            fish.targetX = Math.random() * (canvas.width - 80) + 40;
-                            fish.targetY = Math.random() * 360 + 40;
-                            fish.stateTimer = Math.floor(Math.random() * 100) + 50;
+                            fish.targetX = fish.x + (Math.random() - 0.5) * 40;
+                            fish.targetY = fish.y + (Math.random() - 0.5) * 20;
+                            fish.stateTimer = Math.floor(Math.random() * 250) + 120;
+                        } else if (rand < 0.75) {
+                            fish.state = 'dig';
+                            fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                            fish.targetY = 380;
+                            fish.stateTimer = Math.floor(Math.random() * 200) + 150;
+                        } else if (gameData.filterOn && rand < 0.88) {
+                            fish.state = 'filter';
+                            fish.targetX = 795;
+                            fish.targetY = 360;
+                            fish.stateTimer = Math.floor(Math.random() * 200) + 100;
                         } else {
-                            fish.state = 'inspect';
-                            fish.targetX = Math.random() < 0.5 ? 55 : canvas.width - 55;
-                            fish.targetY = Math.random() * 300 + 60;
-                            fish.stateTimer = 500;
+                            const plants = gameData.decorations.filter(d => d.type === 'plant');
+                            if (plants.length > 0) {
+                                fish.state = 'inspect';
+                                const targetPlant = plants[Math.floor(Math.random() * plants.length)];
+                                fish.targetX = targetPlant.x;
+                                fish.targetY = 370;
+                                fish.stateTimer = Math.floor(Math.random() * 300) + 150;
+                            } else {
+                                fish.state = 'swim';
+                                fish.targetX = Math.random() * (canvas.width - 120) + 60;
+                                fish.targetY = Math.random() * 300 + 50;
+                                fish.stateTimer = 300;
+                            }
                         }
                     }
 
-                    if (fish.state === 'inspect') {
+                    if (fish.state === 'inspect' || fish.state === 'dig' || fish.state === 'filter') {
                         const distToTarget = Math.hypot(fish.targetX - fish.x, fish.targetY - fish.y);
-                        if (distToTarget < 15 && fish.inspectPauseTimer === 0) {
-                            fish.inspectPauseTimer = Math.floor(Math.random() * 120) + 80;
+                        if (distToTarget < 25 && fish.inspectPauseTimer === 0) {
+                            fish.inspectPauseTimer = Math.floor(Math.random() * 150) + 80;
+
+                            if (fish.state === 'inspect') {
+                                gameData.decorations.forEach(dec => {
+                                    if (dec.type === 'plant' && Math.abs(dec.x - fish.x) < 30) {
+                                        if (dec.scaleY === undefined) dec.scaleY = 1.0;
+                                        dec.scaleY = Math.max(0.4, dec.scaleY - 0.15);
+                                    }
+                                });
+                            }
                         }
                     }
                 }
 
-                let baseSpeed = 0.45;
-                if (fish.type === 'guppy') baseSpeed = 0.6;
-                if (fish.type === 'neon') baseSpeed = 0.75;
-                if (fish.type === 'goldfish') baseSpeed = 0.35;
-                if (fish.type === 'beta') baseSpeed = 0.4;
+                let baseSpeed = 0.35;
+                if (fish.type === 'guppy') baseSpeed = 0.45;
+                if (fish.type === 'neon') baseSpeed = 0.55;
+                if (fish.type === 'goldfish') baseSpeed = 0.28;
+                if (fish.type === 'beta') baseSpeed = 0.35;
 
-                if (fish.state === 'rest' && fish.scaredTimer === 0) baseSpeed = 0.02;
-                if (fish.state === 'dash' || fish.scaredTimer > 0) baseSpeed *= 2.2;
-                if (fish.inspectPauseTimer > 0) baseSpeed = 0;
+                if (isDarkTime) {
+                    baseSpeed *= 0.35;
+                }
+
+                if (fish.state === 'rest' && fish.scaredTimer === 0) baseSpeed *= 0.1;
+                if (fish.state === 'dash' || fish.scaredTimer > 0) baseSpeed *= 2.0;
+                if (fish.inspectPauseTimer > 0) baseSpeed = 0.0;
 
                 let targetX = fish.targetX;
                 let targetY = fish.targetY;
 
-                if (fish.scaredTimer === 0 && fish.inspectPauseTimer === 0 && fish.state !== 'inspect') {
-                    let flockX = 0, flockY = 0, flockCount = 0;
-                    arr.forEach(other => {
-                        if (other !== fish && other.type === fish.type && other.scaredTimer === 0 && other.inspectPauseTimer === 0) {
+                if (fish.scaredTimer === 0 && fish.inspectPauseTimer === 0 && fish.state !== 'inspect' && fish.state !== 'dig' && fish.state !== 'filter') {
+                    let separateX = 0, separateY = 0;
+
+                    gameData.fishes.forEach(other => {
+                        if (other !== fish) {
                             const d = Math.hypot(other.x - fish.x, other.y - fish.y);
-                            if (d < 200) {
-                                flockX += other.x;
-                                flockY += other.y;
-                                flockCount++;
+                            const personalSpace = 80 * Math.max(fish.sizeFactor, other.sizeFactor);
+                            if (d < personalSpace && d > 0) {
+                                const pushAngle = Math.atan2(fish.y - other.y, fish.x - other.x);
+                                const force = (personalSpace - d) / personalSpace;
+                                separateX += Math.cos(pushAngle) * force * 2.0;
+                                separateY += Math.sin(pushAngle) * force * 1.5;
                             }
                         }
                     });
 
-                    if (flockCount > 0) {
-                        const centerX = flockX / flockCount;
-                        const centerY = flockY / flockCount;
-                        targetX = (fish.targetX * 2 + centerX) / 3;
-                        targetY = (fish.targetY * 2 + centerY) / 3;
-                    }
+                    targetX += separateX * 15;
+                    targetY += separateY * 15;
                 }
 
                 const dx = targetX - fish.x;
                 const dy = targetY - fish.y;
                 const dist = Math.hypot(dx, dy);
 
-                if (dist > 3) {
-                    const targetVx = (dx / dist) * baseSpeed;
-                    const targetVy = (dy / dist) * baseSpeed;
+                if (dist > 2) {
+                    let targetVx = (dx / dist) * baseSpeed;
+                    let targetVy = (dy / dist) * baseSpeed;
+                    
+                    if (Math.abs(fish.zProgress) > 0.4) {
+                        targetVx *= 0.1;
+                        targetVy *= 1.3;
+                    }
+
                     fish.vx += (targetVx - fish.vx) * 0.08;
                     fish.vy += (targetVy - fish.vy) * 0.08;
                 } else {
@@ -928,18 +1447,34 @@
                 fish.x += fish.vx;
                 fish.y += fish.vy;
 
-                if (fish.x < 35) { fish.x = 35; fish.targetX = fish.x + 80; }
-                if (fish.x > canvas.width - 35) { fish.x = canvas.width - 35; fish.targetX = fish.x - 80; }
-                if (fish.y < 35) { fish.y = 35; fish.targetY = fish.y + 80; }
-                if (fish.y > 410) { fish.y = 410; fish.targetY = fish.y - 80; }
+                if (fish.x < 50) { fish.x = 50; fish.targetX = fish.x + 120; }
+                if (fish.x > canvas.width - 50) { fish.x = canvas.width - 50; fish.targetX = fish.x - 120; }
+                if (fish.y < 45) { fish.y = 45; fish.targetY = fish.y + 100; }
+                if (fish.y > 390) { fish.y = 390; fish.targetY = fish.y - 40; }
 
-                const targetAngle = Math.max(-0.45, Math.min(0.45, fish.vy * 0.35));
-                fish.angle += (targetAngle - fish.angle) * 0.1;
+                if (Math.abs(fish.vx) > 0.015) {
+                    if (fish.vx < -0.005) fish.facingLeft = true;
+                    else if (fish.vx > 0.005) fish.facingLeft = false;
+                }
+
+                let targetAngle = Math.max(-0.45, Math.min(0.45, fish.vy * 0.35));
+                if (fish.state === 'dig' && fish.inspectPauseTimer > 0) {
+                    targetAngle = 0.55;
+                }
+                fish.angle += (targetAngle - fish.angle) * 0.15;
+
+                return true;
             });
+
+            gameData.sandDusts.forEach(sd => {
+                sd.y += sd.vy;
+                sd.alpha -= 0.015;
+            });
+            gameData.sandDusts = gameData.sandDusts.filter(sd => sd.alpha > 0);
 
             gameData.poops.forEach(p => {
                 if (p.falling) {
-                    p.y += 0.5;
+                    p.y += 0.4;
                     if (p.y >= p.targetY) {
                         p.y = p.targetY;
                         p.falling = false;
@@ -956,7 +1491,6 @@
                 toMoveToInventory.forEach(grownFish => {
                     gameData.inventory.push(grownFish);
                 });
-                gameData.fishes = gameData.fishes.filter(f => !toMoveToInventory.includes(f));
                 renderInventory();
             }
 
@@ -969,15 +1503,43 @@
         function drawAquarium() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const purity = gameData.waterCleanliness / 100;
-            const topColor = `rgba(56, 189, 248, ${0.4 + purity * 0.2})`;
-            const botColor = `rgba(3, 105, 161, ${0.8 + purity * 0.2})`;
+            const timeData = getTimeOfDay();
+            document.getElementById('timeOfDayLabel').innerText = `Время: ${timeData.name} ${gameData.lightOn ? '(Свет ВКЛ)' : ''}`;
+
+            const cleanliness = gameData.waterCleanliness;
+            let topColor = timeData.top;
+            let botColor = timeData.bot;
+
+            if (gameData.lightOn && timeData.dark) {
+                topColor = '#38bdf8';
+                botColor = '#0284c7';
+            }
 
             const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
             gradient.addColorStop(0, topColor);
             gradient.addColorStop(1, botColor);
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (cleanliness < 85) {
+                const greenFactor = Math.min(0.7, (85 - cleanliness) / 85 * 0.7);
+                ctx.fillStyle = `rgba(34, 197, 94, ${greenFactor})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            gameData.treasures.forEach(t => {
+                ctx.fillStyle = '#facc15';
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ca8a04';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+
+            gameData.decorations.forEach(dec => {
+                drawDecoration(dec.type, dec.x, canvas.height - 40, dec.scaleY || 1.0);
+            });
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
             ctx.beginPath();
@@ -992,6 +1554,44 @@
             ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
             ctx.fillStyle = '#b45309';
             ctx.fillRect(0, canvas.height - 40, canvas.width, 6);
+
+            // Лампа
+            const centerX = canvas.width / 2;
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(centerX - 40, 0, 80, 12);
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(centerX - 15, 12, 30, 8);
+
+            ctx.fillStyle = gameData.lightOn ? '#facc15' : '#475569';
+            ctx.beginPath();
+            ctx.moveTo(centerX - 35, 20);
+            ctx.lineTo(centerX + 35, 20);
+            ctx.lineTo(centerX + 20, 32);
+            ctx.lineTo(centerX - 20, 32);
+            ctx.closePath();
+            ctx.fill();
+
+            // Кнопка переключения показателей
+            ctx.fillStyle = gameData.showFishBars ? '#16a34a' : '#374151';
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(10, 8, 170, 24, 4);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(gameData.showFishBars ? 'Показатели: ВКЛ 📊' : 'Показатели: ВЫКЛ 📊', 95, 24);
+
+            if (gameData.lightOn) {
+                const lightGrad = ctx.createRadialGradient(centerX, 25, 10, centerX, 150, 350);
+                lightGrad.addColorStop(0, 'rgba(255, 250, 200, 0.35)');
+                lightGrad.addColorStop(1, 'rgba(255, 250, 200, 0)');
+                ctx.fillStyle = lightGrad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             // Фильтр
             ctx.fillStyle = '#475569';
@@ -1012,20 +1612,22 @@
                 }
             }
 
-            gameData.treasures.forEach(t => {
-                ctx.fillStyle = '#facc15';
-                ctx.beginPath();
-                ctx.arc(t.x, t.y, 6, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#ca8a04';
-                ctx.lineWidth = 2;
-                ctx.stroke();
+            gameData.foods.forEach(f => {
+                ctx.fillStyle = '#b45309';
+                ctx.fillRect(f.x - 3, f.y - 3, 6, 6);
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(f.x - 1, f.y - 1, 2, 2);
             });
 
             gameData.poops.forEach(p => {
                 ctx.fillStyle = '#582f0e';
                 ctx.fillRect(p.x - 3, p.y, 6, 4);
                 ctx.fillRect(p.x - 1, p.y - 2, 3, 2);
+            });
+
+            gameData.sandDusts.forEach(sd => {
+                ctx.fillStyle = `rgba(217, 119, 6, ${sd.alpha})`;
+                ctx.fillRect(sd.x, sd.y, 5, 4);
             });
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
@@ -1035,24 +1637,121 @@
                 ctx.fill();
             });
 
-            gameData.decorations.forEach(dec => {
-                drawDecoration(dec.type, dec.x, canvas.height - 40);
+            gameData.fishes.forEach(fish => {
+                if (gameData.realisticStyle) {
+                    drawRealisticFish(fish);
+                } else {
+                    drawPixelFish(fish);
+                }
+
+                if (gameData.showFishBars) {
+                    drawFloatingFishBars(fish);
+                }
             });
 
-            gameData.fishes.forEach(fish => {
-                drawPixelFish(fish);
-            });
+            if (cleanliness < 85) {
+                drawGlassMold(cleanliness);
+            }
         }
 
-        function drawDecoration(type, x, y) {
+        function drawFloatingFishBars(fish) {
+            ctx.save();
+            // Прозрачность полосок показателей 40% (непрозрачность 0.6)
+            ctx.globalAlpha = 0.6;
+
+            const barWidth = 36;
+            const barHeight = 4;
+            const offsetY = 24 * fish.sizeFactor;
+
+            ctx.translate(fish.x, fish.y - offsetY);
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(-barWidth / 2 - 3, -16, barWidth + 6, 18, 3);
+            ctx.fill();
+            ctx.stroke();
+
+            drawMiniBar(-barWidth / 2, -13, barWidth, barHeight, fish.health, '#ef4444', '#991b1b');
+            drawMiniBar(-barWidth / 2, -8, barWidth, barHeight, fish.fullness, '#22c55e', '#14532d');
+            drawMiniBar(-barWidth / 2, -3, barWidth, barHeight, fish.happiness, '#eab308', '#713f12');
+
+            ctx.restore();
+        }
+
+        function drawMiniBar(x, y, w, h, percent, topColor, botColor) {
+            percent = Math.max(0, Math.min(100, percent));
+            const fillW = (w * percent) / 100;
+
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(x, y, w, h);
+
+            if (fillW > 0) {
+                const grad = ctx.createLinearGradient(x, y, x, y + h);
+                grad.addColorStop(0, topColor);
+                grad.addColorStop(1, botColor);
+                ctx.fillStyle = grad;
+                ctx.fillRect(x, y, fillW, h);
+            }
+
+            ctx.strokeStyle = '#020617';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(x, y, w, h);
+        }
+
+        function drawGlassMold(cleanliness) {
+            const moldIntensity = Math.min(1.0, (85 - cleanliness) / 85);
+            ctx.fillStyle = `rgba(16, 185, 129, ${0.15 + moldIntensity * 0.55})`;
+
+            const thickness = 15 + moldIntensity * 25;
+            ctx.fillRect(0, 0, thickness, canvas.height);
+            ctx.fillRect(canvas.width - thickness, 0, thickness, canvas.height);
+            ctx.fillRect(0, 0, canvas.width, thickness * 0.6);
+            ctx.fillRect(0, canvas.height - 40 - thickness * 0.5, canvas.width, thickness * 0.5);
+
+            ctx.fillStyle = `rgba(5, 150, 105, ${0.3 + moldIntensity * 0.4})`;
+            for (let i = 20; i < canvas.height - 50; i += 35) {
+                const sizeVar = (i % 7) * 4;
+                ctx.fillRect(0, i, 22 + sizeVar, 12);
+                ctx.fillRect(canvas.width - (22 + sizeVar), i + 15, 22 + sizeVar, 12);
+            }
+        }
+
+        function drawDecoration(type, x, y, scaleY = 1.0) {
             ctx.save();
             ctx.translate(x, y);
+            const time = Date.now() * 0.003;
+
             if (type === 'plant') {
+                const swayTop1 = Math.sin(time) * 4 * scaleY;
+                const swayTop2 = Math.cos(time * 0.8) * 5 * scaleY;
+
                 ctx.fillStyle = '#15803d';
-                ctx.fillRect(-4, -55, 8, 55);
+                ctx.beginPath();
+                ctx.moveTo(-4, 0);
+                ctx.lineTo(-4 + swayTop1, -55 * scaleY);
+                ctx.lineTo(4 + swayTop1, -55 * scaleY);
+                ctx.lineTo(4, 0);
+                ctx.closePath();
+                ctx.fill();
+
                 ctx.fillStyle = '#22c55e';
-                ctx.fillRect(-12, -45, 8, 45);
-                ctx.fillRect(4, -35, 8, 35);
+                ctx.beginPath();
+                ctx.moveTo(-12, 0);
+                ctx.lineTo(-12 + swayTop2, -45 * scaleY);
+                ctx.lineTo(-4 + swayTop2, -45 * scaleY);
+                ctx.lineTo(-4, 0);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(4, 0);
+                ctx.lineTo(4 + swayTop1 * 0.7, -35 * scaleY);
+                ctx.lineTo(12 + swayTop1 * 0.7, -35 * scaleY);
+                ctx.lineTo(12, 0);
+                ctx.closePath();
+                ctx.fill();
             } else if (type === 'chest') {
                 ctx.fillStyle = '#78350f';
                 ctx.fillRect(-20, -20, 40, 20);
@@ -1078,77 +1777,186 @@
         function drawPixelFish(fish) {
             ctx.save();
             ctx.translate(fish.x, fish.y);
-
-            const facingLeft = fish.targetX < fish.x;
-            if (facingLeft) {
-                ctx.scale(-1, 1);
-                ctx.rotate(-fish.angle);
-            } else {
-                ctx.rotate(fish.angle);
-            }
+            ctx.rotate(fish.angle);
 
             const s = fish.sizeFactor;
-            ctx.scale(s, s);
-            const tailWag = Math.sin(Date.now() * 0.018) > 0 ? 5 : -1;
+            const z = fish.zProgress;
 
-            if (fish.type === 'guppy') {
+            if (fish.tailAnimPhase === undefined) fish.tailAnimPhase = 0;
+            const isMoving = Math.abs(fish.vx) > 0.03 || Math.abs(fish.vy) > 0.03;
+            if (isMoving) {
+                fish.tailAnimPhase += 0.08;
+            }
+            const tailWag = isMoving ? Math.sin(fish.tailAnimPhase) * 4.5 : 0;
+
+            if (Math.abs(z) > 0.3) {
+                const widthScale = Math.max(0.35, 1.0 - Math.abs(z) * 0.65);
+                ctx.scale(s * widthScale, s);
+
                 ctx.fillStyle = fish.color;
-                ctx.fillRect(-12, -6, 24, 12);
-                ctx.fillStyle = '#facc15';
-                ctx.fillRect(-16, -4, 8, 8);
-                ctx.beginPath();
-                ctx.moveTo(-12, 0);
-                ctx.lineTo(-22, -8 - tailWag);
-                ctx.lineTo(-22, 8 + tailWag);
-                ctx.closePath();
-                ctx.fill();
-            } else if (fish.type === 'goldfish') {
-                ctx.fillStyle = fish.color;
-                ctx.fillRect(-16, -10, 30, 20);
-                ctx.fillRect(-8, -14, 16, 28);
-                ctx.fillStyle = '#fb923c';
-                ctx.beginPath();
-                ctx.moveTo(-16, 0);
-                ctx.lineTo(-28, -12 - tailWag);
-                ctx.lineTo(-24, 0);
-                ctx.lineTo(-28, 12 + tailWag);
-                ctx.closePath();
-                ctx.fill();
-            } else if (fish.type === 'neon') {
-                ctx.fillStyle = '#0284c7';
-                ctx.fillRect(-14, -5, 28, 10);
-                ctx.fillStyle = '#38bdf8';
-                ctx.fillRect(-12, -2, 24, 4);
-                ctx.fillStyle = fish.color;
-                ctx.beginPath();
-                ctx.moveTo(-14, 0);
-                ctx.lineTo(-22, -6 - tailWag);
-                ctx.lineTo(-18, 0);
-                ctx.lineTo(-22, 6 + tailWag);
-                ctx.closePath();
-                ctx.fill();
-            } else if (fish.type === 'beta') {
-                ctx.fillStyle = fish.color;
-                ctx.fillRect(-12, -7, 24, 14);
-                ctx.beginPath();
-                ctx.moveTo(-12, 0);
-                ctx.lineTo(-26, -14 - tailWag * 1.5);
-                ctx.lineTo(-20, 0);
-                ctx.lineTo(-26, 14 + tailWag * 1.5);
-                ctx.closePath();
-                ctx.fill();
-                ctx.fillRect(-4, -15, 12, 8);
+                ctx.fillRect(-10, -7, 20, 14);
+
+                if (z > 0) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(-5, -3, 3, 3);
+                    ctx.fillRect(2, -3, 3, 3);
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(-4, -2, 1, 1);
+                    ctx.fillRect(3, -2, 1, 1);
+                } else {
+                    ctx.fillStyle = '#b45309';
+                    ctx.fillRect(-12, -10, 24, 4);
+                }
+            } else {
+                if (fish.facingLeft) {
+                    ctx.scale(-s, s);
+                } else {
+                    ctx.scale(s, s);
+                }
+
+                if (fish.type === 'guppy') {
+                    ctx.fillStyle = fish.color;
+                    ctx.fillRect(-12, -6, 24, 12);
+                    ctx.fillStyle = '#facc15';
+                    ctx.fillRect(-16, -4, 8, 8);
+                    ctx.beginPath();
+                    ctx.moveTo(-12, 0);
+                    ctx.lineTo(-22, -8 - tailWag);
+                    ctx.lineTo(-22, 8 + tailWag);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (fish.type === 'goldfish') {
+                    ctx.fillStyle = fish.color;
+                    ctx.fillRect(-16, -10, 30, 20);
+                    ctx.fillRect(-8, -14, 16, 28);
+                    ctx.fillStyle = '#fb923c';
+                    ctx.beginPath();
+                    ctx.moveTo(-16, 0);
+                    ctx.lineTo(-28, -12 - tailWag);
+                    ctx.lineTo(-24, 0);
+                    ctx.lineTo(-28, 12 + tailWag);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (fish.type === 'neon') {
+                    ctx.fillStyle = '#0284c7';
+                    ctx.fillRect(-14, -5, 28, 10);
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillRect(-12, -2, 24, 4);
+                    ctx.fillStyle = fish.color;
+                    ctx.beginPath();
+                    ctx.moveTo(-14, 0);
+                    ctx.lineTo(-22, -6 - tailWag);
+                    ctx.lineTo(-18, 0);
+                    ctx.lineTo(-22, 6 + tailWag);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (fish.type === 'beta') {
+                    ctx.fillStyle = fish.color;
+                    ctx.fillRect(-12, -7, 24, 14);
+                    ctx.beginPath();
+                    ctx.moveTo(-12, 0);
+                    ctx.lineTo(-26, -14 - tailWag * 1.5);
+                    ctx.lineTo(-20, 0);
+                    ctx.lineTo(-26, 14 + tailWag * 1.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillRect(-4, -15, 12, 8);
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(6, -4, 4, 4);
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(7, -3, 2, 2);
+
+                if (fish.sizeFactor >= 2.1) {
+                    ctx.fillStyle = '#facc15';
+                    ctx.fillRect(-4, -18, 8, 4);
+                    ctx.fillRect(-2, -22, 4, 4);
+                }
             }
 
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(6, -4, 4, 4);
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(7, -3, 2, 2);
+            ctx.restore();
+        }
 
-            if (fish.sizeFactor >= 2.1) {
-                ctx.fillStyle = '#facc15';
-                ctx.fillRect(-4, -18, 8, 4);
-                ctx.fillRect(-2, -22, 4, 4);
+        function drawRealisticFish(fish) {
+            ctx.save();
+            ctx.translate(fish.x, fish.y);
+            ctx.rotate(fish.angle);
+
+            const s = fish.sizeFactor;
+            const z = fish.zProgress;
+
+            if (fish.tailAnimPhase === undefined) fish.tailAnimPhase = 0;
+            const isMoving = Math.abs(fish.vx) > 0.03 || Math.abs(fish.vy) > 0.03;
+            if (isMoving) {
+                fish.tailAnimPhase += 0.08;
+            }
+            const tailWag = isMoving ? Math.sin(fish.tailAnimPhase) * 6.5 : 0;
+
+            if (Math.abs(z) > 0.3) {
+                const widthScale = Math.max(0.3, 1.0 - Math.abs(z) * 0.7);
+                ctx.scale(s * widthScale, s);
+                ctx.beginPath();
+                ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                ctx.fillStyle = fish.color;
+                ctx.fill();
+                ctx.strokeStyle = '#00000022';
+                ctx.stroke();
+            } else {
+                if (fish.facingLeft) {
+                    ctx.scale(-s, s);
+                } else {
+                    ctx.scale(s, s);
+                }
+
+                ctx.fillStyle = fish.color;
+                ctx.beginPath();
+                if (fish.type === 'beta') {
+                    ctx.moveTo(-10, 0);
+                    ctx.bezierCurveTo(-25, -18 + tailWag, -35, -22, -30, -5);
+                    ctx.bezierCurveTo(-40, 0, -35, 15, -30, 5);
+                    ctx.bezierCurveTo(-35, 22, -25, 18 + tailWag, -10, 0);
+                } else if (fish.type === 'goldfish') {
+                    ctx.moveTo(-12, 0);
+                    ctx.quadraticCurveTo(-28, -16 + tailWag, -32, -8);
+                    ctx.quadraticCurveTo(-22, 0, -32, 8);
+                    ctx.quadraticCurveTo(-28, 16 + tailWag, -12, 0);
+                } else {
+                    ctx.moveTo(-10, 0);
+                    ctx.lineTo(-24, -12 + tailWag);
+                    ctx.lineTo(-20, 0);
+                    ctx.lineTo(-24, 12 + tailWag);
+                }
+                ctx.closePath();
+                ctx.fill();
+
+                const bodyGrad = ctx.createRadialGradient(-2, -2, 2, 0, 0, 16);
+                bodyGrad.addColorStop(0, '#ffffff');
+                bodyGrad.addColorStop(0.3, fish.color);
+                bodyGrad.addColorStop(1, '#00000044');
+
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI * 2);
+                ctx.fillStyle = bodyGrad;
+                ctx.fill();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(-4, -9);
+                ctx.quadraticCurveTo(2, -18, 8, -9);
+                ctx.fillStyle = fish.color;
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(8, -2, 2.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(8.5, -2, 1.2, 0, Math.PI * 2);
+                ctx.fillStyle = '#000000';
+                ctx.fill();
             }
 
             ctx.restore();
@@ -1158,6 +1966,7 @@
             updateFish();
             drawAquarium();
             updateUI();
+            renderInventory();
             requestAnimationFrame(gameLoop);
         }
 
