@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симулятор Аквариума (Исправленное поедание еды)</title>
+    <title>Симулятор Аквариума (3 кусочка корма)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -425,7 +425,7 @@
                 <button class="success" onclick="sellBulkMarketFish(9999)">Продать всех на рынок</button>
             </div>
             <div class="inventory-list" id="inventoryList"></div>
-            <div class="info-text">✨ Исправлено поедание корма с грунта на GitHub Pages!</div>
+            <div class="info-text">✨ При клике или авто-кормлении в воду падает сразу 3 кусочка корма!</div>
         </div>
     </div>
 
@@ -433,7 +433,7 @@
         const canvas = document.getElementById('aquariumCanvas');
         const ctx = canvas.getContext('2d');
 
-        const SAVE_KEY = 'pixel_aquarium_save_master_v7';
+        const SAVE_KEY = 'pixel_aquarium_save_master_v10';
 
         let gameData = {
             coins: 150,
@@ -557,7 +557,7 @@
                     gameData.fishes.forEach(f => {
                         if (f.tailAnimPhase === undefined) f.tailAnimPhase = Math.random() * Math.PI * 2;
                         if (f.health === undefined) f.health = Math.floor(Math.random() * 21) + 80;
-                        if (f.fullness === undefined) f.fullness = 0;
+                        if (f.fullness === undefined) f.fullness = 50;
                         if (f.happiness === undefined) f.happiness = 100;
                         if (f.nocturnal === undefined) f.nocturnal = f.type === 'corydoras';
                         if (f.zProgress === undefined) f.zProgress = 0;
@@ -694,7 +694,7 @@
                 nextPoopInterval: randomPoopInterval,
                 tailAnimPhase: Math.random() * Math.PI * 2,
                 health: Math.floor(Math.random() * 21) + 80,
-                fullness: 0,
+                fullness: 50,
                 happiness: 100
             };
         }
@@ -815,7 +815,8 @@
                 return;
             }
 
-            spawnFood(clickX, clickY);
+            // ПРИ КЛИКЕ СОЗДАЕМ СРАЗУ 3 КУСОЧКА КОРМА
+            spawnMultipleFood(clickX, clickY, 3);
             triggerScare(clickX, clickY, 180);
         }
 
@@ -827,6 +828,23 @@
                 falling: true,
                 spawnTime: Date.now()
             });
+            saveGame();
+            updateUI();
+        }
+
+        // Функция для добавления нескольких кусочков корма с небольшим разбросом
+        function spawnMultipleFood(x, y, count = 3) {
+            for (let i = 0; i < count; i++) {
+                const offsetX = (Math.random() - 0.5) * 35;
+                const offsetY = (Math.random() - 0.5) * 15;
+                gameData.foods.push({
+                    x: Math.max(30, Math.min(canvas.width - 30, x + offsetX)),
+                    y: Math.max(20, Math.min(200, y + offsetY)),
+                    targetY: 410,
+                    falling: true,
+                    spawnTime: Date.now()
+                });
+            }
             saveGame();
             updateUI();
         }
@@ -864,7 +882,8 @@
         }
 
         function feedFishRandom() {
-            spawnFood(Math.random() * (canvas.width - 100) + 50, 40 + Math.random() * 50);
+            // ПРИ АВТОМАТИЧЕСКОМ КОРМЛЕНИИ ТАКЖЕ ПАДАЕТ 3 КУСОЧКА
+            spawnMultipleFood(Math.random() * (canvas.width - 100) + 50, 40 + Math.random() * 50, 3);
         }
 
         function cleanWater() {
@@ -1313,7 +1332,7 @@
                 });
             }
 
-            const FULLNESS_DECAY_PER_FRAME = 100 / (72 * 3600 * 60);
+            const FULLNESS_DECAY_PER_FRAME = 100 / (360 * 60);
 
             gameData.fishes = gameData.fishes.filter((fish) => {
                 const adultMs = (fish.adultDays || 7) * 24 * 60 * 60 * 1000;
@@ -1340,8 +1359,7 @@
                 let targetHappiness = (fish.health + fish.fullness + gameData.waterCleanliness) / 3;
                 fish.happiness += (targetHappiness - fish.happiness) * 0.01;
 
-                // Увеличен радиус обнаружения еды (и добавлен минимальный порог сбора), чтобы рыбы никогда не зависали над ней
-                const foodNoticeRadius = (timeData.mode === 'morning') ? 50 * fish.sizeFactor : 35 * fish.sizeFactor;
+                const foodNoticeRadius = (timeData.mode === 'morning') ? 70 * fish.sizeFactor : 50 * fish.sizeFactor;
 
                 if (fish.fullness < 95 && gameData.foods.length > 0) {
                     let closestFoodIdx = -1;
@@ -1356,8 +1374,7 @@
 
                     if (closestFoodIdx !== -1) {
                         const food = gameData.foods[closestFoodIdx];
-                        // ИСПРАВЛЕНИЕ: если рыба подошла достаточно близко (или проскочила точку в пределах 25 пикселей), еда гарантированно съедается
-                        if (minDist < foodNoticeRadius || Math.hypot(food.x - fish.x, food.y - fish.y) < 25) {
+                        if (minDist < foodNoticeRadius || Math.hypot(food.x - fish.x, food.y - fish.y) < 30) {
                             gameData.foods.splice(closestFoodIdx, 1);
                             fish.fullness = Math.min(100, fish.fullness + 35);
                             fish.happiness = Math.min(100, fish.happiness + 15);
@@ -1367,6 +1384,11 @@
                             fish.targetY = food.falling ? food.y : Math.min(380, food.y);
                             fish.state = 'swim';
                         }
+                    }
+                } else if (fish.fullness < 40 && gameData.foods.length === 0 && mouseX === -9999) {
+                    if (Math.random() < 0.02) {
+                        fish.targetX = canvas.width / 2 + (Math.random() - 0.5) * 300;
+                        fish.targetY = 80 + Math.random() * 80;
                     }
                 }
 
@@ -1923,12 +1945,16 @@
             }
             const tailWag = isMoving ? Math.sin(fish.tailAnimPhase) * 4.5 : 0;
 
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.5;
+
             if (Math.abs(z) > 0.1) {
                 const widthScale = Math.max(0.35, 1.0 - Math.abs(z) * 0.65);
                 ctx.scale(s * widthScale, s);
 
                 ctx.fillStyle = fish.color;
                 ctx.fillRect(-10, -7, 20, 14);
+                ctx.strokeRect(-10, -7, 20, 14);
 
                 if (z > 0) {
                     ctx.fillStyle = '#ffffff';
@@ -1950,20 +1976,21 @@
 
                 if (fish.type === 'guppy') {
                     ctx.fillStyle = fish.color;
-                    ctx.fillRect(-12, -6, 24, 12);
-                    ctx.fillStyle = '#facc15';
-                    ctx.fillRect(-16, -4, 8, 8);
                     ctx.beginPath();
                     ctx.moveTo(-12, 0);
                     ctx.lineTo(-22, -8 - tailWag);
                     ctx.lineTo(-22, 8 + tailWag);
                     ctx.closePath();
                     ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillRect(-12, -6, 24, 12);
+                    ctx.strokeRect(-12, -6, 24, 12);
+
+                    ctx.fillStyle = '#facc15';
+                    ctx.fillRect(-16, -4, 8, 8);
                 } else if (fish.type === 'goldfish') {
                     ctx.fillStyle = fish.color;
-                    ctx.fillRect(-16, -10, 30, 20);
-                    ctx.fillRect(-8, -14, 16, 28);
-                    ctx.fillStyle = '#fb923c';
                     ctx.beginPath();
                     ctx.moveTo(-16, 0);
                     ctx.lineTo(-28, -12 - tailWag);
@@ -1971,22 +1998,27 @@
                     ctx.lineTo(-28, 12 + tailWag);
                     ctx.closePath();
                     ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillRect(-16, -10, 30, 20);
+                    ctx.strokeRect(-16, -10, 30, 20);
+                    ctx.fillRect(-8, -14, 16, 28);
+                    ctx.strokeRect(-8, -14, 16, 28);
                 } else if (fish.type === 'corydoras') {
                     ctx.fillStyle = fish.color;
-                    ctx.fillRect(-14, -8, 28, 16);
-                    ctx.fillStyle = '#65a30d';
-                    ctx.fillRect(-10, -4, 20, 8);
                     ctx.beginPath();
                     ctx.moveTo(-14, 0);
                     ctx.lineTo(-22, -7 - tailWag);
                     ctx.lineTo(-22, 7 + tailWag);
                     ctx.closePath();
                     ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillRect(-14, -8, 28, 16);
+                    ctx.strokeRect(-14, -8, 28, 16);
+                    ctx.fillStyle = '#65a30d';
+                    ctx.fillRect(-10, -4, 20, 8);
                 } else if (fish.type === 'neon') {
-                    ctx.fillStyle = '#0284c7';
-                    ctx.fillRect(-14, -5, 28, 10);
-                    ctx.fillStyle = '#38bdf8';
-                    ctx.fillRect(-12, -2, 24, 4);
                     ctx.fillStyle = fish.color;
                     ctx.beginPath();
                     ctx.moveTo(-14, 0);
@@ -1995,9 +2027,14 @@
                     ctx.lineTo(-22, 6 + tailWag);
                     ctx.closePath();
                     ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillRect(-14, -5, 28, 10);
+                    ctx.strokeRect(-14, -5, 28, 10);
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillRect(-12, -2, 24, 4);
                 } else if (fish.type === 'beta') {
                     ctx.fillStyle = fish.color;
-                    ctx.fillRect(-12, -7, 24, 14);
                     ctx.beginPath();
                     ctx.moveTo(-12, 0);
                     ctx.lineTo(-26, -14 - tailWag * 1.5);
@@ -2005,6 +2042,10 @@
                     ctx.lineTo(-26, 14 + tailWag * 1.5);
                     ctx.closePath();
                     ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillRect(-12, -7, 24, 14);
+                    ctx.strokeRect(-12, -7, 24, 14);
                     ctx.fillRect(-4, -15, 12, 8);
                 }
 
@@ -2045,7 +2086,8 @@
                 ctx.arc(0, 0, 12, 0, Math.PI * 2);
                 ctx.fillStyle = fish.color;
                 ctx.fill();
-                ctx.strokeStyle = '#00000022';
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#0f172a';
                 ctx.stroke();
             } else {
                 if (fish.facingLeft) {
@@ -2074,6 +2116,9 @@
                 }
                 ctx.closePath();
                 ctx.fill();
+                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = '#0f172a';
+                ctx.stroke();
 
                 const bodyGrad = ctx.createRadialGradient(-2, -2, 2, 0, 0, 16);
                 bodyGrad.addColorStop(0, '#ffffff');
@@ -2084,8 +2129,8 @@
                 ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI * 2);
                 ctx.fillStyle = bodyGrad;
                 ctx.fill();
-                ctx.lineWidth = 1;
-                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#0f172a';
                 ctx.stroke();
 
                 ctx.beginPath();
@@ -2093,6 +2138,7 @@
                 ctx.quadraticCurveTo(2, -18, 8, -9);
                 ctx.fillStyle = fish.color;
                 ctx.fill();
+                ctx.stroke();
 
                 ctx.beginPath();
                 ctx.arc(8, -2, 2.5, 0, Math.PI * 2);
