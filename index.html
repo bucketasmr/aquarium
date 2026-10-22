@@ -360,6 +360,9 @@
 </head>
 <body>
 
+    <!-- Фоновый аудиоэлемент -->
+    <audio id="aquariumAudio" src="https://github.com/bucketasmr/aquarium/raw/main/Aquarium%20sound.mp3" loop preload="auto"></audio>
+
     <div class="container" id="mainContainer">
         <h1>Симулятор Аквариума</h1>
         
@@ -397,6 +400,7 @@
             <button id="fullCleanBtn" class="warning" style="background:#b45309; border-color:#92400e;" onclick="fullCleanWater()">Полная очистка (35 🪙)</button>
             <button id="netBtn" class="cyan" onclick="toggleNetMode()">Сачок: ВЫКЛ</button>
             <button id="filterBtn" onclick="toggleFilter()">Фильтр: ВЫКЛ</button>
+            <button id="soundBtn" class="success" onclick="toggleAudio()">Звук: ВКЛ 🔊</button>
             <button class="cyan" onclick="toggleCanvasFullScreen()">На весь экран ⛶</button>
             <button class="purple" onclick="setPcMode(true)" id="pcModeBtn">Режим ПК</button>
             <button class="dark-mode" onclick="setPcMode(false)" id="stdModeBtn">Стандартный режим</button>
@@ -431,6 +435,7 @@
     <script>
         const canvas = document.getElementById('aquariumCanvas');
         const ctx = canvas.getContext('2d');
+        const bgAudio = document.getElementById('aquariumAudio');
 
         const SAVE_KEY = 'pixel_aquarium_save_master_v13';
 
@@ -443,6 +448,7 @@
             pcMode: false,
             showFishBars: true,
             netMode: false,
+            soundOn: true,
             lastFeedTime: 0,
             fishes: [],
             decorations: [],
@@ -500,6 +506,20 @@
 
             applyPcModeUI();
             updateNetButtonUI();
+            updateSoundButtonUI();
+            
+            // Пытаемся запустить фоновый звук при загрузке
+            if (gameData.soundOn) {
+                bgAudio.play().catch(() => {
+                    // Если браузер заблокировал автовоспроизведение, вешаем одноразовый слушатель клика для разблокировки
+                    const unlockAudio = () => {
+                        bgAudio.play();
+                        window.removeEventListener('pointerdown', unlockAudio);
+                    };
+                    window.addEventListener('pointerdown', unlockAudio);
+                });
+            }
+
             renderShop();
             renderInventory();
             renderQuests();
@@ -554,6 +574,7 @@
 
                     if (gameData.showFishBars === undefined) gameData.showFishBars = true;
                     if (gameData.netMode === undefined) gameData.netMode = false;
+                    if (gameData.soundOn === undefined) gameData.soundOn = true;
                     
                     gameData.fishes.forEach(f => {
                         if (f.tailAnimPhase === undefined) f.tailAnimPhase = Math.random() * Math.PI * 2;
@@ -570,6 +591,28 @@
                 } catch (e) {
                     console.error('Ошибка загрузки сохранения', e);
                 }
+            }
+        }
+
+        function toggleAudio() {
+            gameData.soundOn = !gameData.soundOn;
+            if (gameData.soundOn) {
+                bgAudio.play();
+            } else {
+                bgAudio.pause();
+            }
+            updateSoundButtonUI();
+            saveGame();
+        }
+
+        function updateSoundButtonUI() {
+            const btn = document.getElementById('soundBtn');
+            if (gameData.soundOn) {
+                btn.innerText = 'Звук: ВКЛ 🔊';
+                btn.className = 'success';
+            } else {
+                btn.innerText = 'Звук: ВЫКЛ 🔇';
+                btn.className = 'dark-mode';
             }
         }
 
@@ -655,6 +698,9 @@
         function loadGameManual() {
             loadGameData();
             updateNetButtonUI();
+            updateSoundButtonUI();
+            if (gameData.soundOn) bgAudio.play();
+            else bgAudio.pause();
             renderShop();
             renderInventory();
             renderQuests();
@@ -1595,7 +1641,6 @@
                 if (timeData.mode === 'morning') baseSpeed *= 1.3;
                 if (timeData.mode === 'evening' && !fish.nocturnal) baseSpeed *= 0.6;
                 
-                // Если сейчас ночь (или вечер без света) и это сомик (nocturnal), замедляем его в 2.5 раза (было умножение на 1.5, стало на 0.4)
                 if (isDarkTime && fish.nocturnal) {
                     baseSpeed *= 0.4;
                 } else if (isDarkTime && !fish.nocturnal) {
@@ -2021,7 +2066,7 @@
 
                 ctx.beginPath();
                 ctx.arc(10.8, -3, 1.5, 0, Math.PI * 2);
-                ctx.fillStyle = '#0f172a';
+                ctx.fillStyle = '#000000';
                 ctx.fill();
 
                 ctx.beginPath();
