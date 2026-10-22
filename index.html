@@ -400,6 +400,7 @@
             <button id="fullCleanBtn" class="warning" style="background:#b45309; border-color:#92400e;" onclick="fullCleanWater()">Полная очистка (35 🪙)</button>
             <button id="netBtn" class="cyan" onclick="toggleNetMode()">Сачок: ВЫКЛ</button>
             <button id="filterBtn" onclick="toggleFilter()">Фильтр: ВЫКЛ</button>
+            <button id="groundBubblesBtn" class="cyan" onclick="toggleGroundBubbles()">Пузыри грунта: ВКЛ</button>
             <button id="soundBtn" class="success" onclick="toggleAudio()">Звук: ВКЛ 🔊</button>
             <button class="cyan" onclick="toggleCanvasFullScreen()">На весь экран ⛶</button>
             <button class="purple" onclick="setPcMode(true)" id="pcModeBtn">Режим ПК</button>
@@ -437,13 +438,14 @@
         const ctx = canvas.getContext('2d');
         const bgAudio = document.getElementById('aquariumAudio');
 
-        const SAVE_KEY = 'pixel_aquarium_save_master_v13';
+        const SAVE_KEY = 'pixel_aquarium_save_master_v14';
 
         let gameData = {
             coins: 150,
             maxFishCapacity: 4,
             waterCleanliness: 100,
             filterOn: false,
+            groundBubblesOn: true, // Включение/выключение случайных пузырей грунта
             lightOn: false,
             pcMode: false,
             showFishBars: true,
@@ -456,6 +458,7 @@
             foods: [],
             poops: [],
             fishBubbles: [],
+            groundBubbles: [],
             sandDusts: [],
             matingParticles: [],
             treasures: [],
@@ -507,11 +510,10 @@
             applyPcModeUI();
             updateNetButtonUI();
             updateSoundButtonUI();
+            updateGroundBubblesButtonUI();
             
-            // Пытаемся запустить фоновый звук при загрузке
             if (gameData.soundOn) {
                 bgAudio.play().catch(() => {
-                    // Если браузер заблокировал автовоспроизведение, вешаем одноразовый слушатель клика для разблокировки
                     const unlockAudio = () => {
                         bgAudio.play();
                         window.removeEventListener('pointerdown', unlockAudio);
@@ -538,7 +540,7 @@
             let saved = localStorage.getItem(SAVE_KEY);
 
             if (!saved) {
-                for (let i = 12; i >= 1; i--) {
+                for (let i = 13; i >= 1; i--) {
                     const oldSave = localStorage.getItem(`pixel_aquarium_save_v${i}`) || localStorage.getItem('pixel_aquarium_save_master');
                     if (oldSave) {
                         saved = oldSave;
@@ -555,7 +557,10 @@
                     if (!gameData.matingParticles) gameData.matingParticles = [];
                     if (!gameData.fishes) gameData.fishes = [];
                     if (!gameData.inventory) gameData.inventory = [];
+                    if (!gameData.groundBubbles) gameData.groundBubbles = [];
                     
+                    if (gameData.groundBubblesOn === undefined) gameData.groundBubblesOn = true;
+
                     if (!gameData.quests || typeof gameData.quests !== 'object') {
                         gameData.quests = {};
                     }
@@ -612,6 +617,26 @@
                 btn.className = 'success';
             } else {
                 btn.innerText = 'Звук: ВЫКЛ 🔇';
+                btn.className = 'dark-mode';
+            }
+        }
+
+        function toggleGroundBubbles() {
+            gameData.groundBubblesOn = !gameData.groundBubblesOn;
+            if (!gameData.groundBubblesOn) {
+                gameData.groundBubbles = []; // Очистить текущие пузыри при выключении
+            }
+            updateGroundBubblesButtonUI();
+            saveGame();
+        }
+
+        function updateGroundBubblesButtonUI() {
+            const btn = document.getElementById('groundBubblesBtn');
+            if (gameData.groundBubblesOn) {
+                btn.innerText = 'Пузыри грунта: ВКЛ';
+                btn.className = 'cyan';
+            } else {
+                btn.innerText = 'Пузыри грунта: ВЫКЛ';
                 btn.className = 'dark-mode';
             }
         }
@@ -699,6 +724,7 @@
             loadGameData();
             updateNetButtonUI();
             updateSoundButtonUI();
+            updateGroundBubblesButtonUI();
             if (gameData.soundOn) bgAudio.play();
             else bgAudio.pause();
             renderShop();
@@ -1716,6 +1742,25 @@
                 return true;
             });
 
+            // Генерация случайных пузырьков со дна (уменьшено еще в 4 раза: вероятность 0.0375)
+            if (gameData.groundBubblesOn && Math.random() < 0.0375) {
+                gameData.groundBubbles.push({
+                    x: Math.random() * (canvas.width - 80) + 40,
+                    y: 410,
+                    speed: (0.8 + Math.random() * 1.2) / 3, // скорость в 3 раза ниже
+                    size: 1.5 + Math.random() * 2.5,
+                    wobbleSpeed: 0.05 + Math.random() * 0.1,
+                    wobbleDist: 3 + Math.random() * 6,
+                    baseXMultiplier: Math.random() * 100
+                });
+            }
+
+            gameData.groundBubbles.forEach(b => {
+                b.y -= b.speed;
+                b.x += Math.sin(b.y * b.wobbleSpeed + b.baseXMultiplier) * 0.3;
+            });
+            gameData.groundBubbles = gameData.groundBubbles.filter(b => b.y > 40);
+
             gameData.matingParticles.forEach(mp => {
                 mp.alpha -= 0.015;
             });
@@ -1855,15 +1900,27 @@
             ctx.fillStyle = '#64748b';
             ctx.fillRect(795, canvas.height - 95, 6, 25);
 
-            if (gameData.filterOn) {
-                bubbleAnimCounter += 0.02;
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-                const pipeTopY = canvas.height - 95;
-                for (let i = 0; i < 6; i++) {
-                    const bx = 798 + Math.sin(bubbleAnimCounter * 3 + i * 1.5) * 5;
-                    const by = pipeTopY - ((bubbleAnimCounter * 70 + i * 40) % (pipeTopY - 30));
-                    ctx.fillRect(bx, by, 4, 4);
-                }
+            bubbleAnimCounter += 0.01;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            const pipeTopY = canvas.height - 95;
+            const filterStreamActive = gameData.filterOn; 
+            const streamCount = filterStreamActive ? 6 : 2; 
+            for (let i = 0; i < streamCount; i++) {
+                const bx = 798 + Math.sin(bubbleAnimCounter * 4 + i * 1.2) * (filterStreamActive ? 10 : 5);
+                const by = pipeTopY - ((bubbleAnimCounter * (filterStreamActive ? 22 : 14) + i * 25) % (pipeTopY - 30));
+                ctx.beginPath();
+                ctx.arc(bx, by, filterStreamActive ? (1.5 + (i % 3)) : 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Отрисовка случайных пузырьков со дна (если включены)
+            if (gameData.groundBubblesOn) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                gameData.groundBubbles.forEach(b => {
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
             }
 
             gameData.foods.forEach(f => {
